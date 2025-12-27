@@ -5,7 +5,11 @@ import { api } from "@/convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StudentProblemCard } from "@/components/StudentProblemCard";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, LayoutGrid } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function StudentAssignmentPage() {
   const params = useParams();
@@ -20,47 +24,65 @@ export default function StudentAssignmentPage() {
 
   if (data === undefined) {
     return (
-      <main className="p-8">
-        <p>Loading...</p>
-      </main>
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   const { assignment, problems } = data;
 
   return (
-    <main className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <button
+    <main className="p-8 max-w-7xl min-w-4xl mx-auto space-y-8">
+      <div className="flex flex-col gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => router.push(`/${crnId}`)}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mb-4 transition-colors"
+          className="w-fit -ml-2 text-muted-foreground"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Class
-        </button>
-        <div className="flex items-center gap-3 mb-2">
-          <FileText className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-200">
-            {assignment.title}
-          </h1>
+        </Button>
+
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <FileText className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight">
+              {assignment.title}
+            </h1>
+            {assignment.description && (
+              <p className="text-muted-foreground text-sm max-w-2xl">
+                {assignment.description}
+              </p>
+            )}
+          </div>
         </div>
-        {assignment.description && (
-          <p className="text-slate-600 dark:text-slate-400 mt-2 max-w-3xl">
-            {assignment.description}
-          </p>
-        )}
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-6">
-          Problems
-        </h2>
+      <Separator />
+
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold">Problems</h2>
+          <Badge variant="secondary" className="ml-1">
+            {problems.length}
+          </Badge>
+        </div>
+
         {problems.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center">
-            <p className="text-slate-500 dark:text-slate-400">
+          <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <span className="text-2xl">🧮</span>
+            </div>
+            <CardTitle className="mb-1">No problems yet</CardTitle>
+            <CardDescription>
               No problems have been added to this set yet.
-            </p>
-          </div>
+            </CardDescription>
+          </Card>
         ) : (
           <div className="grid gap-4 max-w-4xl">
             {problems.map((problem) => (

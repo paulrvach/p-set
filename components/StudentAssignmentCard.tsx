@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FileText, Calendar, ChevronRight } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 interface StudentAssignmentCardProps {
   crnId: Id<"crns">;
@@ -30,28 +31,28 @@ export function StudentAssignmentCard({
       href={`/${crnId}/${assignmentId}`}
       className="block group"
     >
-      <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-5 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md transition-all">
-        <div className="flex items-center gap-4">
-          <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+      <Card className="hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer h-full">
+        <CardHeader className="flex flex-row items-center gap-4 py-5">
+          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
             <FileText className="w-6 h-6" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            <CardTitle className="group-hover:text-primary transition-colors truncate">
               {title}
-            </h3>
+            </CardTitle>
             {description && (
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 line-clamp-1">
+              <CardDescription className="line-clamp-1 mt-1">
                 {description}
-              </p>
+              </CardDescription>
             )}
-            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-500">
+            <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
               <Calendar className="w-3 h-3" />
               <span>Assigned {formattedDate}</span>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-400 transition-colors" />
-        </div>
-      </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+        </CardHeader>
+      </Card>
     </Link>
   );
 }

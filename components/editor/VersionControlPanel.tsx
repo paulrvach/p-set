@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Clock, Save, RotateCcw, X, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -93,12 +94,18 @@ export function VersionControlPanel({
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger
-        className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
-        title="Version control"
-      >
-        <Clock className="w-4 h-4" />
-        Checkpoints
-      </SheetTrigger>
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 h-8"
+            title="Version control history"
+          >
+            <Clock className="w-4 h-4" />
+            Checkpoints
+          </Button>
+        }
+      />
       <SheetContent className="w-[400px] sm:w-[540px]">
         <SheetHeader>
           <SheetTitle>Version Control</SheetTitle>

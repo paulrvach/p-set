@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Hash, ChevronRight } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 interface StudentProblemCardProps {
   crnId: Id<"crns">;
@@ -24,27 +25,27 @@ export function StudentProblemCard({
       href={`/${crnId}/${assignmentId}/${problemNumber}`}
       className="block group"
     >
-      <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md transition-all">
-        <div className="flex items-center gap-3">
-          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-            <div className="flex items-center gap-0.5 text-purple-600 dark:text-purple-400 font-semibold">
-              <Hash className="w-4 h-4" />
+      <Card className="hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer">
+        <CardHeader className="flex flex-row items-center gap-4 py-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <div className="flex items-center gap-0.5 text-primary font-semibold">
+              <Hash className="h-4 w-4" />
               <span className="text-sm">{problemNumber}</span>
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+            <CardTitle className="group-hover:text-primary transition-colors truncate">
               {title}
-            </h4>
+            </CardTitle>
             {description && (
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 line-clamp-1">
+              <CardDescription className="line-clamp-1">
                 {description}
-              </p>
+              </CardDescription>
             )}
           </div>
-          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-400 transition-colors" />
-        </div>
-      </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+        </CardHeader>
+      </Card>
     </Link>
   );
 }

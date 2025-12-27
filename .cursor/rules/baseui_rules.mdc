@@ -1,0 +1,69 @@
+# Base UI Guidelines
+
+This project uses `@base-ui/react` for its core UI components instead of Radix UI. Base UI has different patterns for component composition.
+
+## Critical Rules
+
+### 1. No `asChild` Prop
+Base UI components **DO NOT** support the `asChild` prop commonly found in Radix UI. 
+- **NEVER** use `asChild` on components like `Trigger`, `Close`, `Item`, etc.
+- **NEVER** wrap a `Button` component inside a `Trigger` or `Close` component with `asChild`.
+
+### 2. Use the `render` Prop for Composition
+To have a Base UI component render as a custom component (like our `Button`), use the `render` prop.
+- The `render` prop accepts a React element.
+- Base UI will merge the trigger/action props into the element provided to `render`.
+
+**Incorrect:**
+```tsx
+<DialogTrigger asChild>
+  <Button variant="outline">Open</Button>
+</DialogTrigger>
+```
+
+**Correct:**
+```tsx
+<DialogTrigger render={<Button variant="outline" />}>
+  Open
+</DialogTrigger>
+```
+
+### 3. Avoid Nested Buttons
+Since both Base UI `Button` and `Trigger` components render a `<button>` tag by default, wrapping them without using the `render` prop will cause a "button cannot be a descendant of button" error.
+
+### 4. Component Mapping (Base UI vs Radix)
+| Radix Pattern | Base UI Pattern |
+|---------------|-----------------|
+| `<Trigger asChild><Button>...</Button></Trigger>` | `<Trigger render={<Button />}>...</Trigger>` |
+| `<Close asChild><Button>...</Button></Close>` | `<Close render={<Button />}>...</Button></Close>` |
+| `<Item asChild><Link>...</Link></Item>` | `<Item render={<Link />}>...</Item>` |
+
+## Examples
+
+### Dialog Trigger with Button
+```tsx
+import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+
+export function MyDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button variant="primary" />}>
+        Open Dialog
+      </DialogTrigger>
+      <DialogContent>...</DialogContent>
+    </Dialog>
+  )
+}
+```
+
+### Sheet Close with Button
+```tsx
+import { SheetClose } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+
+// Inside SheetContent
+<SheetClose render={<Button variant="ghost" />}>
+  Cancel
+</SheetClose>
+```

@@ -6,6 +6,41 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Rocket, LogIn, GraduationCap, School } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -94,424 +129,365 @@ export default function DashboardPage() {
     return (
       <main className="p-8">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce"></div>
           <div
-            className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"
+            className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"
             style={{ animationDelay: "0.1s" }}
           ></div>
           <div
-            className="w-2 h-2 bg-slate-600 rounded-full animate-bounce"
+            className="w-2 h-2 bg-primary/80 rounded-full animate-bounce"
             style={{ animationDelay: "0.2s" }}
           ></div>
-          <p className="ml-2 text-slate-600 dark:text-slate-400">Loading...</p>
+          <p className="ml-2 text-sm text-muted-foreground font-medium">Loading Dashboard...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="p-8 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-200">
+    <main className="p-8 max-w-7xl mx-auto space-y-10">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           {isAdmin ? "Professor Dashboard" : "Student Dashboard"}
         </h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-1">
-          Signed in as {profile?.email}
+        <p className="text-muted-foreground text-sm">
+          Welcome back, <span className="text-foreground font-medium">{profile?.email}</span>
         </p>
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-4 mb-8">
+      <div className="flex flex-wrap gap-3">
         {isAdmin && (
           <>
             <Button
               onClick={() => setShowCreateClassDialog(true)}
-              className="bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              size="lg"
+              className="gap-2"
             >
-              Create Class
+              <Plus className="w-4 h-4" />
+              Create Class Template
             </Button>
             <Button
               onClick={() => setShowPublishCRNDialog(true)}
-              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              variant="outline"
+              size="lg"
+              className="gap-2"
             >
-              Publish CRN
+              <Rocket className="w-4 h-4 text-blue-500" />
+              Publish Active CRN
             </Button>
           </>
         )}
         {!isAdmin && (
           <Button
             onClick={() => setShowJoinClassDialog(true)}
-            className="bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            size="lg"
+            className="gap-2 bg-indigo-600 hover:bg-indigo-700"
           >
-            Join Class
+            <LogIn className="w-4 h-4" />
+            Join New Class
           </Button>
         )}
       </div>
 
       {/* Admin specific sections */}
       {isAdmin && (
-        <>
+        <div className="space-y-10">
           {/* Classes grid */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Your Classes
-            </h2>
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <School className="w-5 h-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold tracking-tight">Your Course Templates</h2>
+            </div>
             {classes.length === 0 ? (
-              <p className="text-slate-600 dark:text-slate-400">
-                No classes yet. Create one to get started.
-              </p>
+              <Card className="border-dashed bg-muted/20">
+                <CardContent className="flex flex-col items-center justify-center py-10 gap-3">
+                  <p className="text-muted-foreground text-sm">No course templates yet.</p>
+                  <Button variant="outline" size="sm" onClick={() => setShowCreateClassDialog(true)}>
+                    Create your first class
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {classes.map((klass) => (
-                  <button
+                  <Card 
                     key={klass.classId}
+                    className="hover:shadow-md transition-all cursor-pointer group border-border/60 hover:border-primary/50"
                     onClick={() => router.push(`/classes/${klass.classId}`)}
-                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-left hover:shadow-lg transition-shadow cursor-pointer"
                   >
-                    <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">
-                      {klass.name}
-                    </h3>
-                  </button>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="group-hover:text-primary transition-colors line-clamp-2">
+                        {klass.name}
+                      </CardTitle>
+                      <CardDescription className="font-mono text-[10px] opacity-50">
+                        {klass.classId}
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
           {/* Admin CRNs table */}
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Active CRNs
-            </h2>
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold tracking-tight">Active Class Instances (CRNs)</h2>
+            </div>
             {adminCRNs.length === 0 ? (
-              <p className="text-slate-600 dark:text-slate-400">
-                No active CRNs found.
-              </p>
+              <Card className="border-dashed bg-muted/20">
+                <CardContent className="flex flex-col items-center justify-center py-10">
+                  <p className="text-muted-foreground text-sm text-center max-w-xs">
+                    No active CRNs found. Publish a template to start a live class.
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-900">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Class
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Semester
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Year
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Invite Code
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Role
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              <Card className="p-0 border-border/60">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Course Name</TableHead>
+                      <TableHead>Term</TableHead>
+                      <TableHead>Year</TableHead>
+                      <TableHead>Invite Code</TableHead>
+                      <TableHead>Your Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {adminCRNs.map((crn) => (
-                      <tr
-                        key={crn.crnId}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-900/50"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {crn.className}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                          {crn.semester}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                          {crn.year}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-700 dark:text-slate-300">
-                          {crn.inviteCode}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 capitalize">
-                          {crn.role}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              crn.status === "published"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : crn.status === "draft"
-                                  ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                                  : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                            }`}
+                      <TableRow key={crn.crnId} className="group cursor-pointer" onClick={() => router.push(`/crns/${crn.crnId}`)}>
+                        <TableCell className="font-medium">{crn.className}</TableCell>
+                        <TableCell>{crn.semester}</TableCell>
+                        <TableCell>{crn.year}</TableCell>
+                        <TableCell>
+                          <code className="bg-muted px-1.5 py-0.5 rounded text-primary text-[10px] font-bold tracking-wider">
+                            {crn.inviteCode}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {crn.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={crn.status === "published" ? "default" : "secondary"}
+                            className={cn(
+                              "capitalize",
+                              crn.status === "published" && "bg-green-500/10 text-green-600 border-green-500/20"
+                            )}
                           >
                             {crn.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => router.push(`/crns/${crn.crnId}`)}
-                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                          >
-                            Manage Roster
-                          </button>
-                        </td>
-                      </tr>
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs font-semibold text-primary">
+                            Manage
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </Card>
             )}
-          </div>
-        </>
+          </section>
+        </div>
       )}
 
       {/* Student specific sections */}
       {!isAdmin && (
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4">
-            My Enrolled Classes
-          </h2>
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-xl font-semibold tracking-tight">Your Enrolled Courses</h2>
+          </div>
           {studentCRNs.length === 0 ? (
-            <p className="text-slate-600 dark:text-slate-400">
-              You haven't joined any classes yet.
-            </p>
+            <Card className="border-dashed bg-muted/20">
+              <CardContent className="flex flex-col items-center justify-center py-20 gap-4">
+                <div className="bg-background w-12 h-12 rounded-full flex items-center justify-center shadow-sm">
+                  <School className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div className="text-center">
+                  <p className="text-foreground font-medium">You haven't joined any classes yet</p>
+                  <p className="text-muted-foreground text-xs mt-1">Enter an invite code from your professor to get started.</p>
+                </div>
+                <Button onClick={() => setShowJoinClassDialog(true)} size="sm" variant="outline" className="mt-2">
+                  <LogIn className="w-3.5 h-3.5 mr-2" />
+                  Join Class
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Class
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Semester
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Year
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+            <Card className="p-0 border-border/60">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Semester</TableHead>
+                    <TableHead>Year</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {studentCRNs.map((crn) => (
-                    <tr
-                      key={crn.crnId}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-900/50"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {crn.className}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                        {crn.semester}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                        {crn.year}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 capitalize">
-                        {crn.role}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => router.push(`/${crn.crnId}`)}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                        >
-                          Enter Class
-                        </button>
-                      </td>
-                    </tr>
+                    <TableRow key={crn.crnId} className="group cursor-pointer" onClick={() => router.push(`/${crn.crnId}`)}>
+                      <TableCell className="font-semibold text-sm">{crn.className}</TableCell>
+                      <TableCell>{crn.semester}</TableCell>
+                      <TableCell>{crn.year}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {crn.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs font-semibold text-primary">
+                          Enter Course
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </Card>
           )}
-        </div>
+        </section>
       )}
 
       {/* Create Class Dialog */}
-      {showCreateClassDialog && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-          onClick={() => setShowCreateClassDialog(false)}
-        >
-          <div
-            className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Create Class
-            </h2>
-            <form onSubmit={handleCreateClass} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Class Name
-                </label>
-                <input
-                  type="text"
-                  name="className"
-                  required
-                  placeholder="e.g. Differential Equations"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateClassDialog(false)}
-                  className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white rounded-lg disabled:opacity-50"
-                >
-                  {isCreating ? "Creating..." : "Create"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Dialog open={showCreateClassDialog} onOpenChange={setShowCreateClassDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Class Template</DialogTitle>
+            <DialogDescription>
+              A template stores assignments and problems that can be published to active CRNs.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateClass} className="space-y-4 py-2">
+            <Field>
+              <FieldLabel>Class Name</FieldLabel>
+              <Input
+                name="className"
+                required
+                placeholder="e.g. Differential Equations"
+                className="h-9"
+                autoFocus
+              />
+            </Field>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="ghost" onClick={() => setShowCreateClassDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? "Creating..." : "Create Template"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Publish CRN Dialog */}
-      {showPublishCRNDialog && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-          onClick={() => setShowPublishCRNDialog(false)}
-        >
-          <div
-            className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Publish CRN
-            </h2>
-            <form onSubmit={handlePublishCRN} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Class
-                </label>
-                <select
-                  name="classId"
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                >
-                  <option value="">Select a class</option>
+      <Dialog open={showPublishCRNDialog} onOpenChange={setShowPublishCRNDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Publish Active CRN</DialogTitle>
+            <DialogDescription>
+              Create a live instance of a course template for a specific term.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePublishCRN} className="space-y-4 py-2">
+            <Field>
+              <FieldLabel>Course Template</FieldLabel>
+              <Select name="classId" required>
+                <SelectTrigger className="w-full h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
                   {classes.map((klass) => (
-                    <option key={klass.classId} value={klass.classId}>
+                    <SelectItem key={klass.classId} value={klass.classId}>
                       {klass.name}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Year
-                </label>
-                <input
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Year</FieldLabel>
+                <Input
                   type="number"
                   name="year"
                   required
-                  placeholder="2025"
+                  defaultValue={new Date().getFullYear()}
                   min="2000"
                   max="2100"
-                  defaultValue={new Date().getFullYear()}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  className="h-9"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Semester
-                </label>
-                <select
-                  name="semester"
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                >
-                  <option value="">Select semester</option>
-                  <option value="Spring">Spring</option>
-                  <option value="Summer">Summer</option>
-                  <option value="Fall">Fall</option>
-                  <option value="Winter">Winter</option>
-                </select>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowPublishCRNDialog(false)}
-                  className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPublishing || classes.length === 0}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg disabled:opacity-50"
-                >
-                  {isPublishing ? "Publishing..." : "Publish"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              </Field>
+              <Field>
+                <FieldLabel>Semester</FieldLabel>
+                <Select name="semester" required defaultValue="Spring">
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Spring">Spring</SelectItem>
+                    <SelectItem value="Summer">Summer</SelectItem>
+                    <SelectItem value="Fall">Fall</SelectItem>
+                    <SelectItem value="Winter">Winter</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="ghost" onClick={() => setShowPublishCRNDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPublishing || classes.length === 0}>
+                {isPublishing ? "Publishing..." : "Publish Live Course"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Join Class Dialog */}
-      {showJoinClassDialog && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-          onClick={() => setShowJoinClassDialog(false)}
-        >
-          <div
-            className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Join Class
-            </h2>
-            <form onSubmit={handleJoinClass} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Invite Code
-                </label>
-                <input
-                  type="text"
-                  name="inviteCode"
-                  required
-                  placeholder="e.g. ABCD-1234"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono uppercase"
-                />
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Enter the 8-character invite code provided by your instructor.
-                </p>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowJoinClassDialog(false)}
-                  className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isJoining}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 text-white rounded-lg disabled:opacity-50"
-                >
-                  {isJoining ? "Joining..." : "Join"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Dialog open={showJoinClassDialog} onOpenChange={setShowJoinClassDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Join a Course</DialogTitle>
+            <DialogDescription>
+              Enter the 8-character invite code provided by your instructor.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleJoinClass} className="space-y-4 py-2">
+            <Field>
+              <FieldLabel>Invite Code</FieldLabel>
+              <Input
+                name="inviteCode"
+                required
+                placeholder="ABCD-1234"
+                className="h-10 text-lg text-center font-mono uppercase tracking-widest"
+                autoFocus
+              />
+            </Field>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="ghost" onClick={() => setShowJoinClassDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isJoining} className="bg-indigo-600 hover:bg-indigo-700">
+                {isJoining ? "Joining..." : "Join Course"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

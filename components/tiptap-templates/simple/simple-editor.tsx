@@ -87,6 +87,7 @@ interface SimpleEditorProps {
   isSaving?: boolean
   onMathEdit?: (data: { latex: string; pos: number; type: "inline" | "block" }) => void
   onEditorReady?: (editor: any) => void
+  onScrollContainerReady?: (el: HTMLDivElement | null) => void
 }
 
 const MainToolbarContent = ({
@@ -207,6 +208,7 @@ export function SimpleEditor({
   className = "",
   onMathEdit,
   onEditorReady,
+  onScrollContainerReady,
 }: SimpleEditorProps) {
   const isMobile = useIsBreakpoint()
   const { height } = useWindowSize()
@@ -329,7 +331,7 @@ export function SimpleEditor({
   }
 
   return (
-    <div className="simple-editor-wrapper">
+    <div className="simple-editor-wrapper" ref={onScrollContainerReady}>
       <EditorContext.Provider value={{ editor }}>
         {editable && (
           <Toolbar

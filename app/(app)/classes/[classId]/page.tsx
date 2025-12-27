@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { AssignmentCard } from "@/components/AssignmentCard";
-import { Settings, FileText, Upload, Plus, ArrowLeft } from "lucide-react";
+import { AssignmentsDataTable } from "@/components/assignments/AssignmentsDataTable";
+import { Settings, FileText, Upload, Plus, ArrowLeft, MoreHorizontal, Edit2, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +20,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 type Tab = "settings" | "assignments" | "upload";
 
@@ -55,7 +64,11 @@ export default function ClassEditorPage() {
   if (!classId) {
     return (
       <main className="p-8">
-        <p className="text-red-600">Invalid class ID</p>
+        <Card className="bg-destructive/10 border-destructive/20">
+          <CardContent className="py-4">
+            <p className="text-destructive font-medium">Invalid class ID</p>
+          </CardContent>
+        </Card>
       </main>
     );
   }
@@ -63,7 +76,18 @@ export default function ClassEditorPage() {
   if (profile === undefined || classes === undefined) {
     return (
       <main className="p-8">
-        <p>Loading...</p>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce"></div>
+          <div
+            className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"
+            style={{ animationDelay: "0.1s" }}
+          ></div>
+          <div
+            className="w-2 h-2 bg-primary/80 rounded-full animate-bounce"
+            style={{ animationDelay: "0.2s" }}
+          ></div>
+          <p className="ml-2 text-sm text-muted-foreground font-medium">Loading Class Template...</p>
+        </div>
       </main>
     );
   }
@@ -71,18 +95,27 @@ export default function ClassEditorPage() {
   if (!currentClass) {
     return (
       <main className="p-8 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-          Class Not Found
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-2">
-          You don't have access to this class, or it doesn't exist.
-        </p>
-        <Button
-          onClick={() => router.push("/dashboard")}
-          className="mt-4"
-        >
-          ← Back to Dashboard
-        </Button>
+        <div className="space-y-6 text-center py-20">
+          <div className="bg-muted w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+            <Settings className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Template Not Found
+            </h1>
+            <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+              You don't have access to this course template, or it doesn't exist.
+            </p>
+          </div>
+          <Button
+            onClick={() => router.push("/dashboard")}
+            variant="outline"
+            className="mt-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Return to Dashboard
+          </Button>
+        </div>
       </main>
     );
   }
@@ -131,30 +164,40 @@ export default function ClassEditorPage() {
   };
 
   return (
-    <main className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
+    <main className="p-8 max-w-7xl min-w-4xl mx-auto space-y-8">
+      <div className="space-y-4">
         <Button
           onClick={() => router.push("/dashboard")}
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="mb-4"
+          className="text-muted-foreground hover:text-foreground h-8 -ml-2"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Dashboard
         </Button>
         
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-1">
             {!isEditingClassName ? (
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-200">
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                   {currentClass.name}
                 </h1>
                 <Button
                   onClick={startEditingClassName}
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon-xs"
+                  className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Edit class name"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </Button>
+                {/* Always show edit button for clarity, but styled subtly */}
+                <Button
+                  onClick={startEditingClassName}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground/40 hover:text-foreground"
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
@@ -166,218 +209,198 @@ export default function ClassEditorPage() {
                   value={editedClassName}
                   onChange={(e) => setEditedClassName(e.target.value)}
                   autoFocus
-                  className="h-9 text-lg font-semibold"
+                  className="h-10 text-xl font-bold"
                 />
-                <Button
-                  type="submit"
-                  size="sm"
-                >
-                  Save
-                </Button>
-                <Button
-                  onClick={() => setIsEditingClassName(false)}
-                  variant="ghost"
-                  size="sm"
-                >
-                  Cancel
-                </Button>
+                <Button type="submit" size="sm">Save</Button>
+                <Button onClick={() => setIsEditingClassName(false)} variant="ghost" size="sm">Cancel</Button>
               </form>
             )}
-            <p className="text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-2">
-              <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider">
-                Class Editor
-              </span>
-              <span className="text-xs font-mono opacity-50">{classId}</span>
-            </p>
+            <div className="flex items-center gap-3 pt-1">
+              <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 hover:bg-primary/10 px-2 uppercase tracking-wider font-bold">
+                Template Editor
+              </Badge>
+              <Separator orientation="vertical" className="h-3" />
+              <span className="text-[10px] font-mono text-muted-foreground/60">{classId}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 dark:border-slate-700 mb-8">
-        <nav className="flex gap-4">
-          <Button
-            onClick={() => setActiveTab("assignments")}
-            variant="ghost"
-            className={`px-4 py-2 h-auto rounded-none border-b-2 transition-all ${
-              activeTab === "assignments"
-                ? "border-primary text-primary bg-primary/5"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Assignments
-          </Button>
-          <Button
-            onClick={() => setActiveTab("upload")}
-            variant="ghost"
-            className={`px-4 py-2 h-auto rounded-none border-b-2 transition-all ${
-              activeTab === "upload"
-                ? "border-primary text-primary bg-primary/5"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload
-          </Button>
-          <Button
-            onClick={() => setActiveTab("settings")}
-            variant="ghost"
-            className={`px-4 py-2 h-auto rounded-none border-b-2 transition-all ${
-              activeTab === "settings"
-                ? "border-primary text-primary bg-primary/5"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            Settings
-          </Button>
+      <div className="border-b border-border">
+        <nav className="flex gap-1 -mb-px">
+          {[
+            { id: "assignments", icon: FileText, label: "Course Assignments" },
+            { id: "upload", icon: Upload, label: "Upload Studio" },
+            { id: "settings", icon: Settings, label: "Class Settings" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border-b-2",
+                activeTab === tab.id
+                  ? "border-primary text-primary bg-primary/5"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
         </nav>
       </div>
 
       {/* Tab Content */}
-      {activeTab === "settings" && (
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">
-            Class Settings
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Class Name
-              </label>
-              <p className="text-slate-900 dark:text-slate-100">{currentClass.name}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Class ID
-              </label>
-              <Badge variant="outline">
-                {classId}
-              </Badge>
-            </div>
+      <div className="min-h-[400px]">
+        {activeTab === "settings" && (
+          <div className="max-w-2xl">
+            <Card className="border-border/60">
+              <CardHeader>
+                <CardTitle>Class Configuration</CardTitle>
+                <CardDescription>Update general settings for this course template.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Field>
+                  <FieldLabel>Template Name</FieldLabel>
+                  <div className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
+                    <span className="text-sm font-medium">{currentClass.name}</span>
+                    <Button variant="ghost" size="sm" onClick={startEditingClassName}>Change</Button>
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel>Unique Identifier</FieldLabel>
+                  <code className="text-[11px] bg-muted p-2 rounded block font-mono">
+                    {classId}
+                  </code>
+                </Field>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === "assignments" && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">
-                Course Assignments
-              </h2>
-              <p className="text-sm text-slate-500">Manage and create assignments for this course template.</p>
-            </div>
-            
-            <Dialog open={showCreateAssignmentDialog} onOpenChange={setShowCreateAssignmentDialog}>
-              <Button onClick={() => setShowCreateAssignmentDialog(true)} size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                New Assignment
-              </Button>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Assignment</DialogTitle>
-                  <DialogDescription>
-                    Add a new problem set to this class template.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreateAssignment} className="space-y-4 py-4">
-                  <Field>
-                    <FieldLabel>Title</FieldLabel>
-                    <Input
-                      type="text"
-                      value={newAssignmentTitle}
-                      onChange={(e) => setNewAssignmentTitle(e.target.value)}
-                      placeholder="e.g., HW 4C - Laplace Transforms"
-                      required
-                      className="h-9"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Description (Optional)</FieldLabel>
-                    <Textarea
-                      value={newAssignmentDescription}
-                      onChange={(e) => setNewAssignmentDescription(e.target.value)}
-                      placeholder="Enter a brief description of the assignment..."
-                      className="min-h-[100px]"
-                    />
-                  </Field>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setShowCreateAssignmentDialog(false)}
-                      disabled={isCreating}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={isCreating}>
-                      {isCreating ? "Creating..." : "Create Assignment"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {assignments === undefined ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : assignments.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-16 text-center">
-              <div className="bg-slate-50 dark:bg-slate-900 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-slate-400" />
+        {activeTab === "assignments" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Assignment Bank</h2>
+                <p className="text-sm text-muted-foreground">The master list of problems and solutions for this course.</p>
               </div>
-              <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">No assignments yet</h3>
-              <p className="text-slate-500 mt-1 max-w-xs mx-auto">
-                Get started by creating your first assignment for this class.
-              </p>
-              <Button
-                onClick={() => setShowCreateAssignmentDialog(true)}
-                variant="outline"
-                className="mt-6"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create First Assignment
-              </Button>
+              
+              <Dialog open={showCreateAssignmentDialog} onOpenChange={showCreateAssignmentDialog ? setShowCreateAssignmentDialog : undefined}>
+                <Button onClick={() => setShowCreateAssignmentDialog(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  New Problem Set
+                </Button>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Assignment</DialogTitle>
+                    <DialogDescription>
+                      Add a new master problem set to this course template.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateAssignment} className="space-y-4 py-2">
+                    <Field>
+                      <FieldLabel>Assignment Title</FieldLabel>
+                      <Input
+                        value={newAssignmentTitle}
+                        onChange={(e) => setNewAssignmentTitle(e.target.value)}
+                        placeholder="e.g., HW 4C - Laplace Transforms"
+                        required
+                        className="h-9"
+                        autoFocus
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Description (Optional)</FieldLabel>
+                      <Textarea
+                        value={newAssignmentDescription}
+                        onChange={(e) => setNewAssignmentDescription(e.target.value)}
+                        placeholder="Briefly describe the topics covered..."
+                        className="min-h-[100px]"
+                      />
+                    </Field>
+                    <DialogFooter className="mt-6">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setShowCreateAssignmentDialog(false)}
+                        disabled={isCreating}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isCreating}>
+                        {isCreating ? "Creating..." : "Create Assignment"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {assignments.map((assignment: any) => (
-                <AssignmentCard
-                  key={assignment._id}
-                  assignmentId={assignment._id}
-                  classId={classId}
-                  title={assignment.title}
-                  description={assignment.description}
-                  creationTime={assignment._creationTime}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {activeTab === "upload" && (
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-8">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">
-            Upload Studio
-          </h2>
-          <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-12 text-center">
-            <Upload className="w-12 h-12 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-slate-400">
-              PDF upload and parsing coming soon
-            </p>
-            <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
-              This feature will allow you to upload PDFs and automatically parse
-              them into assignments and problems.
-            </p>
+            {assignments === undefined ? (
+              <div className="flex items-center gap-2 py-12 justify-center">
+                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></div>
+                <div className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-1.5 h-1.5 bg-primary/80 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+              </div>
+            ) : assignments.length === 0 ? (
+              <Card className="border-dashed bg-muted/20 py-20">
+                <CardContent className="flex flex-col items-center justify-center gap-4">
+                  <div className="bg-background w-12 h-12 rounded-full flex items-center justify-center shadow-sm">
+                    <FileText className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-lg">No assignments found</h3>
+                    <p className="text-muted-foreground text-sm max-w-xs mx-auto mt-1">
+                      Start building your course content by creating your first problem set.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => setShowCreateAssignmentDialog(true)}
+                    variant="outline"
+                    className="mt-2"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create First Assignment
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <AssignmentsDataTable data={assignments as any} classId={classId} />
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+        {activeTab === "upload" && (
+          <div className="max-w-3xl">
+            <Card className="border-border/60">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-primary" />
+                  <CardTitle>AI Upload Studio</CardTitle>
+                </div>
+                <CardDescription>
+                  Automatically parse PDF problem sets into structured assignments and problems.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="py-10">
+                <div className="border-2 border-dashed border-border rounded-xl p-12 text-center bg-muted/10 space-y-4">
+                  <div className="bg-background w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                    <Rocket className="w-8 h-8 text-primary/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground italic">Feature Coming Soon</p>
+                    <p className="text-muted-foreground text-xs max-w-sm mx-auto">
+                      We're building an advanced OCR engine to help you import your existing course materials instantly.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
-

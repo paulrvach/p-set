@@ -5,8 +5,11 @@ import { api } from "@/convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StudentAssignmentCard } from "@/components/StudentAssignmentCard";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader2, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function StudentCRNDashboardPage() {
   const params = useParams();
@@ -17,21 +20,32 @@ export default function StudentCRNDashboardPage() {
 
   if (data === undefined) {
     return (
-      <main className="p-8">
-        <p>Loading...</p>
-      </main>
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (data === null) {
     return (
-      <main className="p-8">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-          Not Authorized
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-2">
-          You don't have access to this class, or it doesn't exist.
-        </p>
+      <main className="p-8 max-w-4xl mx-auto space-y-6">
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardHeader>
+            <CardTitle>Not Authorized</CardTitle>
+            <CardDescription>
+              You don't have access to this class, or it doesn't exist.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-start">
+            <Button
+              variant="ghost"
+              onClick={() => router.push("/dashboard")}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </CardFooter>
+        </Card>
       </main>
     );
   }
@@ -39,38 +53,56 @@ export default function StudentCRNDashboardPage() {
   const { crn, class: classInfo, assignments } = data;
 
   return (
-    <main className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
+    <main className="p-8 max-w-7xl min-w-4xl mx-auto space-y-8">
+      <div className="flex flex-col gap-4">
         <Button
+          variant="ghost"
+          size="sm"
           onClick={() => router.push("/dashboard")}
-          className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+          className="w-fit -ml-2 text-muted-foreground"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Button>
-        <div className="flex items-center gap-3 mb-2">
-          <BookOpen className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-200">
-            {classInfo.name}
-          </h1>
-        </div>
-        <p className="text-slate-600 dark:text-slate-400">
-          {crn.semester} {crn.year} • Welcome to your class dashboard.
-        </p>
-      </div>
 
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">
-          Problem Sets
-        </h2>
-        {assignments.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center">
-            <p className="text-slate-500 dark:text-slate-400">
-              No problem sets have been posted yet.
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <BookOpen className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight">
+              {classInfo.name}
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              {crn.semester} {crn.year} • Welcome to your class dashboard.
             </p>
           </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold">Problem Sets</h2>
+          <Badge variant="secondary" className="ml-1">
+            {assignments.length}
+          </Badge>
+        </div>
+
+        {assignments.length === 0 ? (
+          <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <span className="text-2xl">📚</span>
+            </div>
+            <CardTitle className="mb-1">No problem sets yet</CardTitle>
+            <CardDescription>
+              No problem sets have been posted for this class yet.
+            </CardDescription>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="">
             {assignments.map((assignment) => (
               <StudentAssignmentCard
                 key={assignment._id}

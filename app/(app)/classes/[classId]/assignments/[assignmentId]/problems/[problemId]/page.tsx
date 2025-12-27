@@ -8,9 +8,10 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { EnhancedMathEditor } from "@/components/editor/EnhancedMathEditor";
 import { VersionControlPanel } from "@/components/editor/VersionControlPanel";
 import { useHeader } from "@/components/header-context";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { debounce } from "@/lib/utils";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 
 function ProblemEditorHeader({
   classId,
@@ -46,9 +47,10 @@ function ProblemEditorHeader({
       </div>
       <div className="flex items-center gap-3">
         {hasUnsavedChanges && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            Unsaved changes
-          </span>
+          <Badge variant="outline" className="text-amber-600 border-amber-500/20 bg-amber-500/5 gap-1 px-1.5 h-6">
+            <AlertCircle className="w-3 h-3" />
+            Unsaved
+          </Badge>
         )}
         <VersionControlPanel
           problemId={problemId ?? ("" as Id<"problems">)}
@@ -194,8 +196,8 @@ export default function ProblemEditorPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {content && (
           <EnhancedMathEditor
             content={content}
