@@ -2,14 +2,17 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import type { Id } from "@/convex/_generated/dataModel";
 import { EnhancedMathEditor } from "@/components/editor/EnhancedMathEditor";
-import { Hash, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useHeader } from "@/components/header-context";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { useEffect } from "react";
+import { ThreadProvider } from "@/components/editor/thread-context";
+import { ThreadSidebar } from "@/components/editor/ThreadSidebar";
+import { ThreadStatusToggle } from "@/components/editor/ThreadStatusToggle";
 
 export default function StudentProblemPage() {
   const params = useParams();
@@ -27,7 +30,7 @@ export default function StudentProblemPage() {
   // Set breadcrumb navigation in header
   useEffect(() => {
     if (data) {
-      const { assignment, problem } = data;
+      const { assignment } = data;
       setHeaderContent(
         <BreadcrumbNav
           items={[
@@ -36,10 +39,10 @@ export default function StudentProblemPage() {
               href: `/${crnId}/${assignmentId}`,
             },
             {
-              label: `Problem ${problemNumber}: ${problem.title}`,
+              label: `Problem ${problemNumber}: ${data.problem.title}`,
             },
           ]}
-        />
+        />,
       );
     }
 
@@ -54,42 +57,50 @@ export default function StudentProblemPage() {
     );
   }
 
-  const { problem, solution } = data;
+  const { problem, solution, assignment } = data;
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-auto">
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto py-8 px-6 space-y-8">
-          {problem.description && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Problem Statement
+    <ThreadProvider
+      problemId={problem._id}
+      classId={assignment.classId}
+      showComments={true}
+    >
+      <div className="h-full flex  bg-background overflow-hidden">
+        <div className="h-full w-full overflow-auto">
+          <div className="max-w-5xl mx-auto py-8 px-6 space-y-8">
+            {problem.description && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Problem Statement
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {problem.description}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="overflow-hidden min-h-[600px] flex flex-col">
+              <CardHeader className="border-b bg-muted/30 px-6 py-3">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Official Solution
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {problem.description}
-                </p>
-              </CardContent>
+              <EnhancedMathEditor
+                content={solution?.contentJson}
+                editable={false}
+                className=""
+                footerActions={<ThreadStatusToggle />}
+              />
             </Card>
-          )}
-
-          <Card className="overflow-hidden min-h-[600px]">
-            <CardHeader className="border-b bg-muted/30 px-6 py-3">
-              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Official Solution
-              </CardTitle>
-            </CardHeader>
-            <EnhancedMathEditor
-              content={solution?.contentJson}
-              editable={false}
-              className="p-8"
-            />
-          </Card>
+          </div>
         </div>
+
+        <ThreadSidebar />
       </div>
-    </div>
+    </ThreadProvider>
   );
 }
-

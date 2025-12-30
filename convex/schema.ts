@@ -69,17 +69,111 @@ export default defineSchema({
   })
     .index("by_assignmentId", ["assignmentId"]),
 
-  solutionLines: defineTable({
+  // ============================================
+  // SOLUTIONS (replaces solutionLines - stores full Tiptap doc)
+  // ============================================
+  solutions: defineTable({
     problemId: v.id("problems"),
-    contentJson: v.any(), // Tiptap JSON fragment (entire problem for unified editor)
-    order: v.number(), // Always 1 for unified solutions
-    isCorrected: v.boolean(),
+    contentJson: v.any(), // Full Tiptap JSON with UniqueIDs on blocks
     lastEditedBy: v.optional(v.id("userProfiles")),
     lastEditedAt: v.optional(v.number()),
   })
-    .index("by_problemId", ["problemId"])
-    .index("by_problemId_and_order", ["problemId", "order"]),
+    .index("by_problemId", ["problemId"]),
 
+  // ============================================
+  // THREADS (Liveblocks-style comment threads)
+  // ============================================
+  threads: defineTable({
+    problemId: v.id("problems"),
+    blockId: v.string(), // Tiptap UniqueID - anchors thread to specific block
+    type: v.union(v.literal("comment"), v.literal("dispute")),
+    status: v.union(v.literal("open"), v.literal("resolved")),
+    isArchived: v.boolean(), // True when blockId no longer exists in document
+    createdBy: v.id("userProfiles"),
+    createdAt: v.number(),
+    resolvedBy: v.optional(v.id("userProfiles")),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_problemId", ["problemId"])
+    .index("by_problemId_and_blockId", ["problemId", "blockId"])
+    .index("by_status", ["status"])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
+
+  // ============================================
+  // COMMENTS (within threads)
+  // ============================================
+  comments: defineTable({
+    threadId: v.id("threads"),
+    authorId: v.id("userProfiles"),
+    contentJson: v.any(), // Rich text content (bold, italic, code, mentions)
+    mentions: v.array(v.id("userProfiles")), // Extracted @mentions
+    isDeleted: v.boolean(), // Soft delete - shows "This message was deleted"
+    createdAt: v.number(),
+    editedAt: v.optional(v.number()),
+  })
+    .index("by_threadId", ["threadId"])
+    .index("by_authorId", ["authorId"]),
+
+  // ============================================
+  // REACTIONS (emoji reactions on comments/threads)
+  // ============================================
+  reactions: defineTable({
+    targetType: v.union(v.literal("comment"), v.literal("thread")),
+    targetId: v.string(), // comment._id or thread._id as string
+    userId: v.id("userProfiles"),
+    emoji: v.string(), // e.g., "👀", "✅", "🔥"
+  })
+    .index("by_targetType_and_targetId", ["targetType", "targetId"])
+    .index("by_userId", ["userId"])
+    .index("by_targetType_and_targetId_and_userId", ["targetType", "targetId", "userId"]),
+
+  // ============================================
+  // ACTIVITIES (Class Pulse feed)
+  // ============================================
+  activities: defineTable({
+    classId: v.id("classes"),
+    type: v.union(
+      v.literal("comment_added"),
+      v.literal("dispute_opened"),
+      v.literal("dispute_resolved"),
+      v.literal("solution_edited"),
+      v.literal("mention"),
+    ),
+    actorId: v.id("userProfiles"),
+    problemId: v.id("problems"),
+    blockId: v.optional(v.string()),
+    threadId: v.optional(v.id("threads")),
+    commentId: v.optional(v.id("comments")),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_classId_and_createdAt", ["classId", "createdAt"])
+    .index("by_type", ["type"])
+    .index("by_actorId", ["actorId"]),
+
+  // ============================================
+  // NOTIFICATIONS (The Bell)
+  // ============================================
+  notifications: defineTable({
+    userId: v.id("userProfiles"),
+    type: v.union(
+      v.literal("mention"),
+      v.literal("dispute_resolved"),
+      v.literal("reply"),
+      v.literal("reaction"),
+    ),
+    threadId: v.optional(v.id("threads")),
+    commentId: v.optional(v.id("comments")),
+    actorId: v.id("userProfiles"),
+    isRead: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_userId_and_isRead", ["userId", "isRead"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
+
+  // ============================================
+  // EDITOR CHECKPOINTS (version control)
+  // ============================================
   editorCheckpoints: defineTable({
     problemId: v.id("problems"),
     versionTag: v.string(), // e.g., "Before dispute fix", "Initial version"
@@ -90,34 +184,20 @@ export default defineSchema({
     .index("by_problemId", ["problemId"])
     .index("by_problemId_and_createdAt", ["problemId", "createdAt"]),
 
-  disputes: defineTable({
-    lineId: v.id("solutionLines"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("resolved"),
-      v.literal("dismissed"),
-    ),
-    creatorId: v.id("userProfiles"),
-    createdAt: v.number(),
-    resolvedAt: v.optional(v.number()),
-    resolverId: v.optional(v.id("userProfiles")),
-  })
-    .index("by_lineId", ["lineId"])
-    .index("by_creatorId", ["creatorId"])
-    .index("by_status", ["status"])
-    .index("by_status_and_createdAt", ["status", "createdAt"]),
-
+  // ============================================
+  // AUDIT LOGS (edit history)
+  // ============================================
   auditLogs: defineTable({
     classId: v.id("classes"),
-    lineId: v.id("solutionLines"),
+    problemId: v.id("problems"),
     editorId: v.id("userProfiles"),
     oldContentJson: v.any(), // Previous Tiptap JSON
     newContentJson: v.any(), // New Tiptap JSON
     timestamp: v.number(),
   })
     .index("by_classId", ["classId"])
-    .index("by_lineId", ["lineId"])
+    .index("by_problemId", ["problemId"])
     .index("by_editorId", ["editorId"])
     .index("by_timestamp", ["timestamp"])
-    .index("by_lineId_and_timestamp", ["lineId", "timestamp"]),
+    .index("by_problemId_and_timestamp", ["problemId", "timestamp"]),
 });

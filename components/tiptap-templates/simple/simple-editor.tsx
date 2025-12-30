@@ -14,6 +14,7 @@ import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Selection } from "@tiptap/extensions"
 import Mathematics, { migrateMathStrings } from '@tiptap/extension-mathematics'
+import { UniqueID } from '@tiptap/extension-unique-id'
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button"
@@ -88,6 +89,9 @@ interface SimpleEditorProps {
   onMathEdit?: (data: { latex: string; pos: number; type: "inline" | "block" }) => void
   onEditorReady?: (editor: any) => void
   onScrollContainerReady?: (el: HTMLDivElement | null) => void
+  // Comment system callbacks
+  onBlockSelect?: (blockId: string | null) => void
+  selectedBlockId?: string | null
 }
 
 const MainToolbarContent = ({
@@ -236,6 +240,11 @@ export function SimpleEditor({
           openOnClick: false,
           enableClickSelection: true,
         },
+      }),
+      // UniqueID extension for block-level comment anchoring
+      UniqueID.configure({
+        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem'],
+        attributeName: 'data-block-id',
       }),
       HorizontalRule,
       TextAlign.configure({ types: ["heading", "paragraph"] }),

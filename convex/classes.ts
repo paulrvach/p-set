@@ -837,8 +837,8 @@ export const deleteAssignment = mutation({
 
     for (const problem of problems) {
       const solutionLines = await ctx.db
-        .query("solutionLines")
-        .withIndex("by_problemId", (q) => q.eq("problemId", problem._id))
+        .query("solutions")
+        .withIndex("by_problemId", (q) => q.eq("problemId", problem._id as Id<"problems">))
         .collect();
 
       for (const line of solutionLines) {
@@ -1009,7 +1009,7 @@ export const deleteProblem = mutation({
 
     // Delete all solution lines
     const solutionLines = await ctx.db
-      .query("solutionLines")
+      .query("solutions")
       .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
       .collect();
 
@@ -1023,190 +1023,32 @@ export const deleteProblem = mutation({
 });
 
 // ============================================
-// SOLUTION LINE MANAGEMENT
+// SOLUTION MANAGEMENT (New unified solutions table)
 // ============================================
 
-export const listSolutionLines = query({
-  args: {
-    problemId: v.id("problems"),
-  },
-  returns: v.array(
-    v.object({
-      _id: v.id("solutionLines"),
-      contentJson: v.any(),
-      order: v.number(),
-      isCorrected: v.boolean(),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const lines = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId_and_order", (q) => q.eq("problemId", args.problemId))
-      .collect();
-
-    return lines.map((l) => ({
-      _id: l._id,
-      contentJson: l.contentJson,
-      order: l.order,
-      isCorrected: l.isCorrected,
-    }));
-  },
-});
-
-export const createSolutionLine = mutation({
-  args: {
-    problemId: v.id("problems"),
-    contentJson: v.any(),
-  },
-  returns: v.object({ lineId: v.id("solutionLines") }),
-  handler: async (ctx, args) => {
-    const problem = await ctx.db.get(args.problemId);
-    if (!problem) throw new Error("Problem not found");
-
-    const assignment = await ctx.db.get(problem.assignmentId);
-    if (!assignment) throw new Error("Assignment not found");
-
-    await requireClassOwner(ctx, assignment.classId);
-
-    const existingLines = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
-      .collect();
-
-    const maxOrder =
-      existingLines.length > 0 ? Math.max(...existingLines.map((l) => l.order)) : 0;
-
-    const lineId: Id<"solutionLines"> = await ctx.db.insert("solutionLines", {
-      problemId: args.problemId,
-      contentJson: args.contentJson,
-      order: maxOrder + 1,
-      isCorrected: false,
-    });
-
-    return { lineId };
-  },
-});
-
-export const updateSolutionLine = mutation({
-  args: {
-    lineId: v.id("solutionLines"),
-    contentJson: v.any(),
-    isCorrected: v.optional(v.boolean()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const line = await ctx.db.get(args.lineId);
-    if (!line) throw new Error("Solution line not found");
-
-    const problem = await ctx.db.get(line.problemId);
-    if (!problem) throw new Error("Problem not found");
-
-    const assignment = await ctx.db.get(problem.assignmentId);
-    if (!assignment) throw new Error("Assignment not found");
-
-    const editorId = await requireClassOwner(ctx, assignment.classId);
-
-    // Create audit log entry
-    await ctx.db.insert("auditLogs", {
-      classId: assignment.classId,
-      lineId: args.lineId,
-      editorId,
-      oldContentJson: line.contentJson,
-      newContentJson: args.contentJson,
-      timestamp: Date.now(),
-    });
-
-    // Update the solution line
-    const updates: any = { contentJson: args.contentJson };
-    if (args.isCorrected !== undefined) updates.isCorrected = args.isCorrected;
-
-    await ctx.db.patch(args.lineId, updates);
-    return null;
-  },
-});
-
-export const deleteSolutionLine = mutation({
-  args: {
-    lineId: v.id("solutionLines"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const line = await ctx.db.get(args.lineId);
-    if (!line) throw new Error("Solution line not found");
-
-    const problem = await ctx.db.get(line.problemId);
-    if (!problem) throw new Error("Problem not found");
-
-    const assignment = await ctx.db.get(problem.assignmentId);
-    if (!assignment) throw new Error("Assignment not found");
-
-    await requireClassOwner(ctx, assignment.classId);
-
-    await ctx.db.delete(args.lineId);
-    return null;
-  },
-});
-
-export const reorderSolutionLines = mutation({
-  args: {
-    lineIds: v.array(v.id("solutionLines")),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    if (args.lineIds.length === 0) return null;
-
-    // Verify permissions by checking the first line
-    const firstLine = await ctx.db.get(args.lineIds[0]);
-    if (!firstLine) throw new Error("Solution line not found");
-
-    const problem = await ctx.db.get(firstLine.problemId);
-    if (!problem) throw new Error("Problem not found");
-
-    const assignment = await ctx.db.get(problem.assignmentId);
-    if (!assignment) throw new Error("Assignment not found");
-
-    await requireClassOwner(ctx, assignment.classId);
-
-    // Update order for each line
-    for (let i = 0; i < args.lineIds.length; i++) {
-      await ctx.db.patch(args.lineIds[i], { order: i + 1 });
-    }
-
-    return null;
-  },
-});
-
-// ============================================
-// UNIFIED EDITOR (OVERLEAF-STYLE)
-// ============================================
-
-export const getUnifiedSolution = query({
+export const getSolution = query({
   args: {
     problemId: v.id("problems"),
   },
   returns: v.union(
     v.object({
-      _id: v.id("solutionLines"),
+      _id: v.id("solutions"),
       problemId: v.id("problems"),
       contentJson: v.any(),
-      isCorrected: v.boolean(),
       lastEditedBy: v.union(v.id("userProfiles"), v.null()),
       lastEditedAt: v.union(v.number(), v.null()),
     }),
     v.null(),
   ),
   handler: async (ctx, args) => {
-    // Get the unified solution (order = 1)
     const solution = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId_and_order", (q) =>
-        q.eq("problemId", args.problemId).eq("order", 1),
-      )
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
       .first();
 
     if (!solution) return null;
 
-    const problem = await ctx.db.get(solution.problemId);
+    const problem = await ctx.db.get(args.problemId);
     if (!problem) return null;
 
     const assignment = await ctx.db.get(problem.assignmentId);
@@ -1218,7 +1060,102 @@ export const getUnifiedSolution = query({
       _id: solution._id,
       problemId: solution.problemId,
       contentJson: solution.contentJson,
-      isCorrected: solution.isCorrected,
+      lastEditedBy: solution.lastEditedBy ?? null,
+      lastEditedAt: solution.lastEditedAt ?? null,
+    };
+  },
+});
+
+export const updateSolution = mutation({
+  args: {
+    problemId: v.id("problems"),
+    contentJson: v.any(),
+  },
+  returns: v.object({ solutionId: v.id("solutions") }),
+  handler: async (ctx, args) => {
+    const problem = await ctx.db.get(args.problemId);
+    if (!problem) throw new Error("Problem not found");
+
+    const assignment = await ctx.db.get(problem.assignmentId);
+    if (!assignment) throw new Error("Assignment not found");
+
+    const editorId = await requireClassOwner(ctx, assignment.classId);
+
+    // Get or create solution
+    let solution = await ctx.db
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
+      .first();
+
+    if (solution) {
+      // Create audit log entry
+      await ctx.db.insert("auditLogs", {
+        classId: assignment.classId,
+        problemId: args.problemId,
+        editorId,
+        oldContentJson: solution.contentJson,
+        newContentJson: args.contentJson,
+        timestamp: Date.now(),
+      });
+
+      // Update existing solution
+      await ctx.db.patch(solution._id, {
+        contentJson: args.contentJson,
+        lastEditedBy: editorId,
+        lastEditedAt: Date.now(),
+      });
+      return { solutionId: solution._id };
+    } else {
+      // Create new solution
+      const solutionId: Id<"solutions"> = await ctx.db.insert("solutions", {
+        problemId: args.problemId,
+        contentJson: args.contentJson,
+        lastEditedBy: editorId,
+        lastEditedAt: Date.now(),
+      });
+      return { solutionId };
+    }
+  },
+});
+
+// ============================================
+// UNIFIED EDITOR (OVERLEAF-STYLE) - Aliases for backward compatibility
+// ============================================
+
+export const getUnifiedSolution = query({
+  args: {
+    problemId: v.id("problems"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("solutions"),
+      problemId: v.id("problems"),
+      contentJson: v.any(),
+      lastEditedBy: v.union(v.id("userProfiles"), v.null()),
+      lastEditedAt: v.union(v.number(), v.null()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const solution = await ctx.db
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
+      .first();
+
+    if (!solution) return null;
+
+    const problem = await ctx.db.get(args.problemId);
+    if (!problem) return null;
+
+    const assignment = await ctx.db.get(problem.assignmentId);
+    if (!assignment) return null;
+
+    await requireViewAccessToClass(ctx, assignment.classId);
+
+    return {
+      _id: solution._id,
+      problemId: solution.problemId,
+      contentJson: solution.contentJson,
       lastEditedBy: solution.lastEditedBy ?? null,
       lastEditedAt: solution.lastEditedAt ?? null,
     };
@@ -1229,9 +1166,8 @@ export const updateUnifiedSolution = mutation({
   args: {
     problemId: v.id("problems"),
     contentJson: v.any(),
-    isCorrected: v.optional(v.boolean()),
   },
-  returns: v.object({ solutionId: v.id("solutionLines") }),
+  returns: v.object({ solutionId: v.id("solutions") }),
   handler: async (ctx, args) => {
     const problem = await ctx.db.get(args.problemId);
     if (!problem) throw new Error("Problem not found");
@@ -1241,36 +1177,38 @@ export const updateUnifiedSolution = mutation({
 
     const editorId = await requireClassOwner(ctx, assignment.classId);
 
-    // Get or create unified solution
+    // Get or create solution
     let solution = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId_and_order", (q) =>
-        q.eq("problemId", args.problemId).eq("order", 1),
-      )
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
       .first();
 
     if (solution) {
+      // Create audit log entry
+      await ctx.db.insert("auditLogs", {
+        classId: assignment.classId,
+        problemId: args.problemId,
+        editorId,
+        oldContentJson: solution.contentJson,
+        newContentJson: args.contentJson,
+        timestamp: Date.now(),
+      });
+
       // Update existing solution
       await ctx.db.patch(solution._id, {
         contentJson: args.contentJson,
         lastEditedBy: editorId,
         lastEditedAt: Date.now(),
-        ...(args.isCorrected !== undefined && { isCorrected: args.isCorrected }),
       });
       return { solutionId: solution._id };
     } else {
-      // Create new unified solution
-      const solutionId: Id<"solutionLines"> = await ctx.db.insert(
-        "solutionLines",
-        {
-          problemId: args.problemId,
-          contentJson: args.contentJson,
-          order: 1,
-          isCorrected: args.isCorrected ?? false,
-          lastEditedBy: editorId,
-          lastEditedAt: Date.now(),
-        },
-      );
+      // Create new solution
+      const solutionId: Id<"solutions"> = await ctx.db.insert("solutions", {
+        problemId: args.problemId,
+        contentJson: args.contentJson,
+        lastEditedBy: editorId,
+        lastEditedAt: Date.now(),
+      });
       return { solutionId };
     }
   },
@@ -1293,10 +1231,8 @@ export const createCheckpoint = mutation({
 
     // Get current solution
     const solution = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId_and_order", (q) =>
-        q.eq("problemId", args.problemId).eq("order", 1),
-      )
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
       .first();
 
     if (!solution) throw new Error("No solution to checkpoint");
@@ -1375,13 +1311,21 @@ export const revertToCheckpoint = mutation({
 
     // Get current solution
     const solution = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId_and_order", (q) =>
-        q.eq("problemId", checkpoint.problemId).eq("order", 1),
-      )
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", checkpoint.problemId))
       .first();
 
     if (solution) {
+      // Create audit log entry
+      await ctx.db.insert("auditLogs", {
+        classId: assignment.classId,
+        problemId: checkpoint.problemId,
+        editorId,
+        oldContentJson: solution.contentJson,
+        newContentJson: checkpoint.contentJson,
+        timestamp: Date.now(),
+      });
+
       // Update existing solution with checkpoint content
       await ctx.db.patch(solution._id, {
         contentJson: checkpoint.contentJson,
@@ -1390,11 +1334,9 @@ export const revertToCheckpoint = mutation({
       });
     } else {
       // Create new solution from checkpoint
-      await ctx.db.insert("solutionLines", {
+      await ctx.db.insert("solutions", {
         problemId: checkpoint.problemId,
         contentJson: checkpoint.contentJson,
-        order: 1,
-        isCorrected: false,
         lastEditedBy: editorId,
         lastEditedAt: Date.now(),
       });
@@ -1523,10 +1465,8 @@ export const getStudentProblemByNumber = query({
     if (!problem) throw new Error("Problem not found");
 
     const solution = await ctx.db
-      .query("solutionLines")
-      .withIndex("by_problemId_and_order", (q) =>
-        q.eq("problemId", problem._id).eq("order", 1),
-      )
+      .query("solutions")
+      .withIndex("by_problemId", (q) => q.eq("problemId", problem._id))
       .first();
 
     return {

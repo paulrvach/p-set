@@ -12,6 +12,9 @@ import { ArrowLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { debounce } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { ThreadProvider } from "@/components/editor/thread-context";
+import { ThreadSidebar } from "@/components/editor/ThreadSidebar";
+import { ThreadStatusToggle } from "@/components/editor/ThreadStatusToggle";
 
 function ProblemEditorHeader({
   classId,
@@ -38,7 +41,9 @@ function ProblemEditorHeader({
           className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span className="hidden sm:inline">{assignment?.title ?? "Assignment"}</span>
+          <span className="hidden sm:inline">
+            {assignment?.title ?? "Assignment"}
+          </span>
         </Link>
         <ChevronRight className="w-4 h-4 text-muted-foreground" />
         <span className="font-medium">
@@ -47,7 +52,10 @@ function ProblemEditorHeader({
       </div>
       <div className="flex items-center gap-3">
         {hasUnsavedChanges && (
-          <Badge variant="outline" className="text-amber-600 border-amber-500/20 bg-amber-500/5 gap-1 px-1.5 h-6">
+          <Badge
+            variant="outline"
+            className="text-amber-600 border-amber-500/20 bg-amber-500/5 gap-1 px-1.5 h-6"
+          >
             <AlertCircle className="w-3 h-3" />
             Unsaved
           </Badge>
@@ -91,17 +99,17 @@ export default function ProblemEditorPage() {
 
   const assignment = useQuery(
     api.classes.getAssignment,
-    assignmentId ? { assignmentId } : "skip"
+    assignmentId ? { assignmentId } : "skip",
   );
 
   const problem = useQuery(
     api.classes.getProblem,
-    problemId ? { problemId } : "skip"
+    problemId ? { problemId } : "skip",
   );
 
   const solution = useQuery(
     api.classes.getUnifiedSolution,
-    problemId ? { problemId } : "skip"
+    problemId ? { problemId } : "skip",
   );
 
   const updateSolution = useMutation(api.classes.updateUnifiedSolution);
@@ -121,7 +129,7 @@ export default function ProblemEditorPage() {
         hasUnsavedChanges={hasUnsavedChanges}
         problemId={problemId}
         onRevert={handleRevert}
-      />
+      />,
     );
 
     return () => setHeaderContent(null);
@@ -175,14 +183,14 @@ export default function ProblemEditorPage() {
         setIsSaving(false);
       }
     },
-    [problemId, updateSolution]
+    [problemId, updateSolution],
   );
 
   const debouncedSave = useCallback(
     debounce((contentToSave: any) => {
       saveContent(contentToSave);
     }, 2000),
-    [saveContent]
+    [saveContent],
   );
 
   const handleContentChange = (newContent: any) => {
@@ -195,19 +203,25 @@ export default function ProblemEditorPage() {
     await saveContent(content);
   };
 
+  if (!problemId || !classId) return null;
+
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {content && (
-          <EnhancedMathEditor
-            content={content}
-            onChange={handleContentChange}
-            onSave={handleSave}
-            lastSaved={lastSaved}
-            isSaving={isSaving}
-          />
-        )}
+    <ThreadProvider problemId={problemId} classId={classId}>
+      <div className="h-full min-h-0 flex flex-col overflow-hidden">
+        <div className="h-full min-h-0 flex flex-col">
+          {content && (
+            <EnhancedMathEditor
+              content={content}
+              onChange={handleContentChange}
+              onSave={handleSave}
+              lastSaved={lastSaved}
+              isSaving={isSaving}
+              footerActions={<ThreadStatusToggle />}
+            />
+          )}
+        </div>
+        <ThreadSidebar />
       </div>
-    </div>
+    </ThreadProvider>
   );
 }
