@@ -3,13 +3,13 @@
 import { useState, useRef, useEffect, ReactNode } from "react";
 import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor";
 import { Button } from "@/components/ui/button";
-import { CornerDownLeft, X, Type, Clock, Save } from "lucide-react";
+import { Type, Clock, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import { useBlockHighlight } from "./CommentGutter";
 import { EditorComments } from "./EditorComments";
 import { useThreadContextOptional } from "./thread-context";
+import { MathEditPopover } from "./MathEditPopover";
 
 // ============================================
 // PROPS
@@ -53,7 +53,7 @@ export function EnhancedMathEditor({
     left: number;
     side: "top" | "bottom";
   } | null>(null);
-  
+
   const editInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -61,10 +61,36 @@ export function EnhancedMathEditor({
   // Get thread context (optional, if wrapped)
   const threadContext = useThreadContextOptional();
   const selectedBlockId = threadContext?.selectedBlockId ?? null;
+  const hoveredBlockId = threadContext?.hoveredBlockId ?? null;
   const canShowComments = threadContext?.canShowComments ?? false;
 
   // Apply block highlight
-  useBlockHighlight(editorRef.current, selectedBlockId);
+  useBlockHighlight(editorRef.current, selectedBlockId, hoveredBlockId);
+
+  // Sync editor focus with selected thread
+  useEffect(() => {
+    if (!editorRef.current || !selectedBlockId) return;
+
+    const editor = editorRef.current;
+    let foundPos = -1;
+
+    editor.state.doc.descendants((node: any, pos: number) => {
+      if (node.attrs?.["data-block-id"] === selectedBlockId) {
+        foundPos = pos;
+        return false;
+      }
+      return true;
+    });
+
+    if (foundPos !== -1) {
+      // We don't call editor.commands.focus() here anymore to avoid stealing focus from the sidebar
+      // But we still scroll it into view for context
+      const dom = editor.view.nodeDOM(foundPos) as HTMLElement;
+      if (dom && dom.scrollIntoView) {
+        dom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [selectedBlockId]);
 
   const updatePopoverPosition = () => {
     if (!editingMath || !editorRef.current) return;
@@ -133,7 +159,11 @@ export function EnhancedMathEditor({
     }
   }, [editingMath]);
 
-  const handleMathEdit = (data: { latex: string; pos: number; type: "inline" | "block" }) => {
+  const handleMathEdit = (data: {
+    latex: string;
+    pos: number;
+    type: "inline" | "block";
+  }) => {
     setEditingMath(data);
     setEditValue(data.latex);
   };
@@ -142,9 +172,15 @@ export function EnhancedMathEditor({
     if (editorRef.current && editingMath) {
       const editor = editorRef.current;
       if (editingMath.type === "inline") {
-        editor.commands.updateInlineMath({ latex: editValue, pos: editingMath.pos });
+        editor.commands.updateInlineMath({
+          latex: editValue,
+          pos: editingMath.pos,
+        });
       } else {
-        editor.commands.updateBlockMath({ latex: editValue, pos: editingMath.pos });
+        editor.commands.updateBlockMath({
+          latex: editValue,
+          pos: editingMath.pos,
+        });
       }
       setEditingMath(null);
       editor.commands.focus();
@@ -169,43 +205,15 @@ export function EnhancedMathEditor({
     <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
       {/* Math edit popover */}
       {editingMath && popoverPosition && (
-        <div
-          className={cn(
-            "fixed z-[100] -translate-x-1/2 w-full max-w-[400px] animate-in fade-in zoom-in duration-200",
-            popoverPosition.side === "top" ? "slide-in-from-bottom-2" : "slide-in-from-top-2"
-          )}
-          style={{ top: popoverPosition.top, left: popoverPosition.left }}
-        >
-          <div className="bg-popover border border-border rounded-lg shadow-xl p-2 flex items-center gap-2">
-            <div className="flex-1 flex items-center gap-1.5 bg-muted/50 rounded px-2 py-1 border border-border/50">
-              <span className="text-muted-foreground font-mono text-[10px] select-none opacity-50">
-                {editingMath.type === "inline" ? "$" : "$$"}
-              </span>
-              <Input
-                ref={editInputRef}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleFinishEdit();
-                  if (e.key === "Escape") handleCancelEdit();
-                }}
-                className="h-6 bg-transparent border-none focus-visible:ring-0 text-foreground font-mono text-sm flex-1 min-w-0 px-0"
-                placeholder="LaTeX..."
-              />
-              <span className="text-muted-foreground font-mono text-[10px] select-none opacity-50">
-                {editingMath.type === "inline" ? "$" : "$$"}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button onClick={handleFinishEdit} size="icon-sm" className="h-7 w-7">
-                <CornerDownLeft className="w-3.5 h-3.5" />
-              </Button>
-              <Button onClick={handleCancelEdit} variant="ghost" size="icon-sm" className="h-7 w-7 text-muted-foreground">
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <MathEditPopover
+          editingMath={editingMath}
+          popoverPosition={popoverPosition}
+          editValue={editValue}
+          onEditValueChange={setEditValue}
+          onFinishEdit={handleFinishEdit}
+          onCancelEdit={handleCancelEdit}
+          inputRef={editInputRef}
+        />
       )}
 
       {/* Editor with optional comments */}
@@ -218,22 +226,20 @@ export function EnhancedMathEditor({
         )}
 
         {/* Editor */}
-        <div className={cn("h-full", canShowComments && "pl-8")}>
-          <SimpleEditor
-            content={content}
-            onChange={handleUpdate}
-            onSave={onSave}
-            editable={editable}
-            className={cn("", className)}
-            onMathEdit={handleMathEdit}
-            onEditorReady={(editor) => {
-              editorRef.current = editor;
-            }}
-            onScrollContainerReady={(el) => {
-              scrollContainerRef.current = el;
-            }}
-          />
-        </div>
+        <SimpleEditor
+          content={content}
+          onChange={handleUpdate}
+          onSave={onSave}
+          editable={editable}
+          className={cn("", className)}
+          onMathEdit={handleMathEdit}
+          onEditorReady={(editor) => {
+            editorRef.current = editor;
+          }}
+          onScrollContainerReady={(el) => {
+            scrollContainerRef.current = el;
+          }}
+        />
       </div>
 
       {/* Status Bar */}
@@ -253,7 +259,7 @@ export function EnhancedMathEditor({
             </>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2">
           {footerActions}
 

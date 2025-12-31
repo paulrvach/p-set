@@ -91,7 +91,7 @@ export const listThreadsForProblem = query({
     v.object({
       _id: v.id("threads"),
       problemId: v.id("problems"),
-      blockId: v.string(),
+      blockId: v.union(v.string(), v.null()),
       type: v.union(v.literal("comment"), v.literal("dispute")),
       status: v.union(v.literal("open"), v.literal("resolved")),
       isArchived: v.boolean(),
@@ -125,7 +125,7 @@ export const listThreadsForProblem = query({
         return {
           _id: thread._id,
           problemId: thread.problemId,
-          blockId: thread.blockId,
+          blockId: thread.blockId ?? null,
           type: thread.type,
           status: thread.status,
           isArchived: thread.isArchived,
@@ -153,7 +153,7 @@ export const getThread = query({
       thread: v.object({
         _id: v.id("threads"),
         problemId: v.id("problems"),
-        blockId: v.string(),
+        blockId: v.union(v.string(), v.null()),
         type: v.union(v.literal("comment"), v.literal("dispute")),
         status: v.union(v.literal("open"), v.literal("resolved")),
         isArchived: v.boolean(),
@@ -246,7 +246,7 @@ export const getThread = query({
       thread: {
         _id: thread._id,
         problemId: thread.problemId,
-        blockId: thread.blockId,
+        blockId: thread.blockId ?? null,
         type: thread.type,
         status: thread.status,
         isArchived: thread.isArchived,
@@ -268,7 +268,7 @@ export const listGhostThreads = query({
   returns: v.array(
     v.object({
       _id: v.id("threads"),
-      blockId: v.string(),
+      blockId: v.union(v.string(), v.null()),
       type: v.union(v.literal("comment"), v.literal("dispute")),
       creatorName: v.string(),
       commentCount: v.number(),
@@ -293,7 +293,7 @@ export const listGhostThreads = query({
 
         return {
           _id: thread._id,
-          blockId: thread.blockId,
+          blockId: thread.blockId ?? null,
           type: thread.type,
           creatorName: creator?.name ?? "Unknown",
           commentCount: comments.filter((c) => !c.isDeleted).length,
@@ -307,13 +307,150 @@ export const listGhostThreads = query({
 });
 
 // ============================================
+// FEED QUERY - Flat chronological list of all comments
+// ============================================
+
+export const listAllCommentsForProblem = query({
+  args: {
+    problemId: v.id("problems"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("comments"),
+      threadId: v.id("threads"),
+      blockId: v.union(v.string(), v.null()),
+      threadType: v.union(v.literal("comment"), v.literal("dispute")),
+      threadStatus: v.union(v.literal("open"), v.literal("resolved")),
+      isThreadArchived: v.boolean(),
+      authorId: v.id("userProfiles"),
+      authorName: v.string(),
+      authorEmail: v.string(),
+      isProfessor: v.boolean(),
+      contentJson: v.any(),
+      mentions: v.array(v.id("userProfiles")),
+      isDeleted: v.boolean(),
+      createdAt: v.number(),
+      editedAt: v.union(v.number(), v.null()),
+      reactions: v.array(
+        v.object({
+          emoji: v.string(),
+          count: v.number(),
+          hasReacted: v.boolean(),
+        })
+      ),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const viewerProfile = await getViewerProfile(ctx);
+
+    // Get all threads for this problem
+    const threads = await ctx.db
+      .query("threads")
+      .withIndex("by_problemId", (q) => q.eq("problemId", args.problemId))
+      .collect();
+
+    // Get the problem to find the class and professor
+    const problem = await ctx.db.get(args.problemId);
+    if (!problem) return [];
+
+    const assignment = await ctx.db.get(problem.assignmentId);
+    if (!assignment) return [];
+
+    const klass = await ctx.db.get(assignment.classId);
+    const professorId = klass?.professorId;
+
+    // Gather all comments from all threads
+    const allComments: Array<{
+      _id: Id<"comments">;
+      threadId: Id<"threads">;
+      blockId: string | null;
+      threadType: "comment" | "dispute";
+      threadStatus: "open" | "resolved";
+      isThreadArchived: boolean;
+      authorId: Id<"userProfiles">;
+      authorName: string;
+      authorEmail: string;
+      isProfessor: boolean;
+      contentJson: any;
+      mentions: Array<Id<"userProfiles">>;
+      isDeleted: boolean;
+      createdAt: number;
+      editedAt: number | null;
+      reactions: Array<{ emoji: string; count: number; hasReacted: boolean }>;
+    }> = [];
+
+    for (const thread of threads) {
+      const comments = await ctx.db
+        .query("comments")
+        .withIndex("by_threadId", (q) => q.eq("threadId", thread._id))
+        .collect();
+
+      for (const comment of comments) {
+        const author = await ctx.db.get(comment.authorId);
+
+        // Get reactions for this comment
+        const reactions = await ctx.db
+          .query("reactions")
+          .withIndex("by_targetType_and_targetId", (q) =>
+            q.eq("targetType", "comment").eq("targetId", comment._id as string)
+          )
+          .collect();
+
+        // Group reactions by emoji
+        const reactionMap = new Map<string, { count: number; hasReacted: boolean }>();
+        for (const reaction of reactions) {
+          const existing = reactionMap.get(reaction.emoji) || {
+            count: 0,
+            hasReacted: false,
+          };
+          existing.count++;
+          if (viewerProfile && reaction.userId === viewerProfile._id) {
+            existing.hasReacted = true;
+          }
+          reactionMap.set(reaction.emoji, existing);
+        }
+
+        const reactionArray: Array<{ emoji: string; count: number; hasReacted: boolean }> = [];
+        reactionMap.forEach((value, emoji) => {
+          reactionArray.push({ emoji, ...value });
+        });
+
+        allComments.push({
+          _id: comment._id,
+          threadId: thread._id,
+          blockId: thread.blockId ?? null,
+          threadType: thread.type,
+          threadStatus: thread.status,
+          isThreadArchived: thread.isArchived,
+          authorId: comment.authorId,
+          authorName: author?.name ?? "Unknown",
+          authorEmail: author?.email ?? "",
+          isProfessor: professorId === comment.authorId,
+          contentJson: comment.contentJson,
+          mentions: comment.mentions,
+          isDeleted: comment.isDeleted,
+          createdAt: comment.createdAt,
+          editedAt: comment.editedAt ?? null,
+          reactions: reactionArray,
+        });
+      }
+    }
+
+    // Sort by createdAt in descending order (newest first)
+    allComments.sort((a, b) => a.createdAt - b.createdAt);
+
+    return allComments;
+  },
+});
+
+// ============================================
 // THREAD MUTATIONS
 // ============================================
 
 export const createThread = mutation({
   args: {
     problemId: v.id("problems"),
-    blockId: v.string(),
+    blockId: v.optional(v.string()), // Optional - null for general comments
     type: v.union(v.literal("comment"), v.literal("dispute")),
     initialComment: v.object({
       contentJson: v.any(),
@@ -328,29 +465,42 @@ export const createThread = mutation({
     const profile = await requireViewerProfile(ctx);
     const { assignment } = await requireProblemAccess(ctx, args.problemId);
 
-    // Check if thread already exists for this block
-    const existingThread = await ctx.db
-      .query("threads")
-      .withIndex("by_problemId_and_blockId", (q) =>
-        q.eq("problemId", args.problemId).eq("blockId", args.blockId)
-      )
-      .first();
-
     let threadId: Id<"threads">;
 
-    if (existingThread && !existingThread.isArchived) {
-      // Add to existing thread
-      threadId = existingThread._id;
-      
-      // If new thread is dispute and existing is comment, upgrade to dispute
-      if (args.type === "dispute" && existingThread.type === "comment") {
-        await ctx.db.patch(existingThread._id, { type: "dispute" });
+    // Only check for existing thread if blockId is provided
+    if (args.blockId) {
+      const existingThread = await ctx.db
+        .query("threads")
+        .withIndex("by_problemId_and_blockId", (q) =>
+          q.eq("problemId", args.problemId).eq("blockId", args.blockId)
+        )
+        .first();
+
+      if (existingThread && !existingThread.isArchived) {
+        // Add to existing thread
+        threadId = existingThread._id;
+        
+        // If new thread is dispute and existing is comment, upgrade to dispute
+        if (args.type === "dispute" && existingThread.type === "comment") {
+          await ctx.db.patch(existingThread._id, { type: "dispute" });
+        }
+      } else {
+        // Create new thread
+        threadId = await ctx.db.insert("threads", {
+          problemId: args.problemId,
+          blockId: args.blockId,
+          type: args.type,
+          status: "open",
+          isArchived: false,
+          createdBy: profile._id,
+          createdAt: Date.now(),
+        });
       }
     } else {
-      // Create new thread
+      // General comment - always create new thread
       threadId = await ctx.db.insert("threads", {
         problemId: args.problemId,
-        blockId: args.blockId,
+        blockId: undefined, // General comment
         type: args.type,
         status: "open",
         isArchived: false,
@@ -744,10 +894,10 @@ export const archiveOrphanedThreads = mutation({
     let archivedCount = 0;
 
     for (const thread of threads) {
-      if (!thread.isArchived && !activeBlockIdSet.has(thread.blockId)) {
+      if (!thread.isArchived && !activeBlockIdSet.has(thread.blockId ?? "")) {
         await ctx.db.patch(thread._id, { isArchived: true });
         archivedCount++;
-      } else if (thread.isArchived && activeBlockIdSet.has(thread.blockId)) {
+      } else if (thread.isArchived && activeBlockIdSet.has(thread.blockId ?? "")) {
         // Restore if block reappears
         await ctx.db.patch(thread._id, { isArchived: false });
       }

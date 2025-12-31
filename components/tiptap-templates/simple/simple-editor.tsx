@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useRef, useState } from "react"
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
 
@@ -61,7 +60,6 @@ import { MathDropdownMenu } from "@/components/tiptap-ui/math-dropdown-menu"
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon"
 import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
 import { LinkIcon } from "@/components/tiptap-icons/link-icon"
-import { Sigma, CornerDownLeft, X } from "lucide-react"
 
 // --- Hooks ---
 import { useIsBreakpoint } from "@/hooks/use-is-breakpoint"
@@ -89,9 +87,6 @@ interface SimpleEditorProps {
   onMathEdit?: (data: { latex: string; pos: number; type: "inline" | "block" }) => void
   onEditorReady?: (editor: any) => void
   onScrollContainerReady?: (el: HTMLDivElement | null) => void
-  // Comment system callbacks
-  onBlockSelect?: (blockId: string | null) => void
-  selectedBlockId?: string | null
 }
 
 const MainToolbarContent = ({
@@ -243,7 +238,7 @@ export function SimpleEditor({
       }),
       // UniqueID extension for block-level comment anchoring
       UniqueID.configure({
-        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem'],
+        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem','blockMath'],
         attributeName: 'data-block-id',
       }),
       HorizontalRule,
@@ -295,6 +290,7 @@ export function SimpleEditor({
       content: [{ type: "paragraph" }],
     },
     editable,
+    autofocus: true,
     onCreate({ editor }) {
       migrateMathStrings(editor);
       onEditorReady?.(editor);
@@ -338,7 +334,6 @@ export function SimpleEditor({
   if (!editor) {
     return null
   }
-
   return (
     <div className="simple-editor-wrapper" ref={onScrollContainerReady}>
       <EditorContext.Provider value={{ editor }}>

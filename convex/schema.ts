@@ -85,7 +85,7 @@ export default defineSchema({
   // ============================================
   threads: defineTable({
     problemId: v.id("problems"),
-    blockId: v.string(), // Tiptap UniqueID - anchors thread to specific block
+    blockId: v.optional(v.string()), // Tiptap UniqueID - anchors thread to specific block (null for general comments)
     type: v.union(v.literal("comment"), v.literal("dispute")),
     status: v.union(v.literal("open"), v.literal("resolved")),
     isArchived: v.boolean(), // True when blockId no longer exists in document

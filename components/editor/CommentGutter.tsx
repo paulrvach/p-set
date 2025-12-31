@@ -19,6 +19,8 @@ interface BlockPosition {
   blockId: string;
   top: number;
   height: number;
+  left: number;
+  right: number;
 }
 
 interface CommentGutterProps {
@@ -47,6 +49,8 @@ function getBlockPositions(editor: Editor): BlockPosition[] {
           blockId,
           top: rect.top,
           height: rect.height,
+          right: rect.right,
+          left: rect.left,
         });
       }
     } catch (e) {
@@ -66,6 +70,7 @@ function getBlockPositions(editor: Editor): BlockPosition[] {
 function GutterMarker({
   blockId,
   top,
+  left,
   thread,
   isSelected,
   isHovered,
@@ -76,6 +81,7 @@ function GutterMarker({
 }: {
   blockId: string;
   top: number;
+  left: number;
   thread: GutterThread | undefined;
   isSelected: boolean;
   isHovered: boolean;
@@ -93,10 +99,10 @@ function GutterMarker({
     return (
       <div
         className={cn(
-          "absolute left-0 w-6 flex items-center justify-center transition-opacity duration-150",
+          "absolute w-6 flex items-center justify-center transition-opacity duration-150 pointer-events-auto",
           isHovered ? "opacity-100" : "opacity-0"
         )}
-        style={{ top }}
+        style={{ top, left }}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
@@ -120,8 +126,8 @@ function GutterMarker({
   // Show thread indicator
   return (
     <div
-      className="absolute left-0 w-6 flex items-center justify-center"
-      style={{ top }}
+      className="absolute w-6 flex items-center justify-center pointer-events-auto"
+      style={{ top, left }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -164,13 +170,13 @@ export function CommentGutter({
   const {
     gutterThreads,
     selectedBlockId,
+    hoveredBlockId,
+    setHoveredBlockId,
     selectBlock,
     openNewThread,
   } = useThreadContext();
 
   const [blockPositions, setBlockPositions] = useState<BlockPosition[]>([]);
-  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
-  const [containerOffset, setContainerOffset] = useState(0);
   const gutterRef = useRef<HTMLDivElement>(null);
 
   // Create a map of blockId -> thread for quick lookup
@@ -182,17 +188,16 @@ export function CommentGutter({
     if (!editor || !scrollContainer || !gutterRef.current) return;
 
     const positions = getBlockPositions(editor);
-    const containerRect = scrollContainer.getBoundingClientRect();
     const gutterRect = gutterRef.current.getBoundingClientRect();
 
     // Adjust positions relative to gutter
     const adjustedPositions = positions.map((p) => ({
       ...p,
       top: p.top - gutterRect.top,
+      left: p.right - gutterRect.left + 8, // Position 8px to the right of the block's actual edge
     }));
 
     setBlockPositions(adjustedPositions);
-    setContainerOffset(containerRect.top);
   }, [editor, scrollContainer]);
 
   // Update positions on editor changes and scroll
@@ -253,18 +258,39 @@ export function CommentGutter({
     scrollContainer.addEventListener("mousemove", handleMouseMove);
     scrollContainer.addEventListener("mouseleave", handleMouseLeave);
 
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const blockElement = target.closest("[data-data-block-id]") as HTMLElement;
+      
+      if (blockElement) {
+        const blockId = blockElement.getAttribute("data-data-block-id");
+        if (blockId) {
+          // If there's an existing thread, select it. If not, open new thread input.
+          const hasThread = threadMap.has(blockId);
+          if (hasThread) {
+            selectBlock(blockId);
+          } else {
+            openNewThread(blockId);
+          }
+        }
+      }
+    };
+
+    scrollContainer.addEventListener("click", handleClick);
+
     return () => {
       scrollContainer.removeEventListener("mousemove", handleMouseMove);
       scrollContainer.removeEventListener("mouseleave", handleMouseLeave);
+      scrollContainer.removeEventListener("click", handleClick);
     };
-  }, [editor, scrollContainer, blockPositions, hoveredBlockId]);
+  }, [editor, scrollContainer, blockPositions, hoveredBlockId, setHoveredBlockId, selectBlock, openNewThread, threadMap]);
 
   if (!editor) return null;
 
   return (
     <div
       ref={gutterRef}
-      className="absolute left-0 top-0 bottom-0 w-8 pointer-events-auto"
+      className="absolute inset-0 pointer-events-none"
       style={{ zIndex: 10 }}
     >
       {blockPositions.map((pos) => (
@@ -272,6 +298,7 @@ export function CommentGutter({
           key={pos.blockId}
           blockId={pos.blockId}
           top={pos.top}
+          left={pos.left}
           thread={threadMap.get(pos.blockId)}
           isSelected={selectedBlockId === pos.blockId}
           isHovered={hoveredBlockId === pos.blockId}
@@ -286,33 +313,99 @@ export function CommentGutter({
 }
 
 // ============================================
-// HIGHLIGHT EXTENSION FOR SELECTED BLOCK
+// HIGHLIGHT EXTENSION FOR HOVERED BLOCK
 // ============================================
 
 export function useBlockHighlight(
-  editor: Editor | null,
-  selectedBlockId: string | null
+  editor: any | null,
+  selectedBlockId: string | null,
+  hoveredBlockId: string | null,
 ) {
+  const { gutterThreads } = useThreadContext();
+
   useEffect(() => {
     if (!editor) return;
 
-    // Remove previous highlights
-    const prevHighlighted = document.querySelectorAll("[data-block-highlighted]");
-    prevHighlighted.forEach((el) => {
-      el.removeAttribute("data-block-highlighted");
-      (el as HTMLElement).style.backgroundColor = "";
+    // Helper to get color tone based on thread info
+    const getHighlightClasses = (blockId: string, isSelected: boolean) => {
+      const thread = gutterThreads.find((t) => t.blockId === blockId);
+      
+      if (!thread) {
+        return isSelected ? ["bg-accent/20", "border-accent/30", "border"] : ["border-transparent", "border"];
+      }
+
+      const isDispute = thread.type === "dispute" && thread.status !== "resolved";
+      const isResolved = thread.status === "resolved";
+
+      if (isSelected) {
+        if (isDispute) return ["bg-red-500/15", "border-red-500/40", "rounded-sm", 'text-red-500'];
+        if (isResolved) return ["bg-green-500/15", "border-green-500/40", "rounded-sm", 'text-green-500'];
+        return ["bg-blue-500/15", "border-blue-500/40", "rounded-sm", 'text-blue-500'];
+      } else {
+        // Hover state
+        if (isDispute) return ["bg-red-500/5", "border-red-500/20", "rounded-sm"];
+        if (isResolved) return ["bg-green-500/5", "border-green-500/20", "rounded-sm"];
+        return ["bg-blue-500/5", "border-blue-500/20", "rounded-sm"];
+      }
+    };
+
+    // Remove all previous highlights
+    const allHighlighted = document.querySelectorAll(
+      "[data-block-highlighted]",
+    );
+    allHighlighted.forEach((el) => {
+      const element = el as HTMLElement;
+      element.removeAttribute("data-block-highlighted");
+      element.classList.remove(
+        "bg-red-500/5",
+        "text-red-500",
+        "text-green-500",
+        "text-blue-500",
+        "bg-red-500/15",
+        "bg-green-500/5",
+        "bg-green-500/15",
+        "bg-blue-500/5",
+        "bg-blue-500/15",
+        "border-red-500/20",
+        "border-red-500/40",
+        "border-green-500/20",
+        "border-green-500/40",
+        "border-blue-500/20",
+        "border-blue-500/40",
+        "bg-accent/20",
+        "border-accent/30",
+        "border-transparent",
+        "border",
+        "shadow-sm",
+        "rounded-sm"
+      );
     });
 
-    // Add highlight to selected block
-    if (selectedBlockId) {
-      const element = document.querySelector(`[data-block-id="${selectedBlockId}"]`);
+    // Apply hover highlight (only if not selected)
+    if (hoveredBlockId && hoveredBlockId !== selectedBlockId) {
+      const element = document.querySelector(
+        `[data-data-block-id="${hoveredBlockId}"]`,
+      ) as HTMLElement;
       if (element) {
-        element.setAttribute("data-block-highlighted", "true");
-        (element as HTMLElement).style.backgroundColor = "hsl(var(--accent) / 0.3)";
+        element.setAttribute("data-block-highlighted", "hover");
+        element.classList.add(...getHighlightClasses(hoveredBlockId, false));
       }
     }
-  }, [editor, selectedBlockId]);
+
+    // Apply selection highlight (higher priority)
+    if (selectedBlockId) {
+      const element = document.querySelector(
+        `[data-data-block-id="${selectedBlockId}"]`,
+      ) as HTMLElement;
+      if (element) {
+        element.setAttribute("data-block-highlighted", "selected");
+        element.classList.add(...getHighlightClasses(selectedBlockId, true));
+      }
+    }
+  }, [editor, selectedBlockId, hoveredBlockId, gutterThreads]);
 }
+
+
 
 // ============================================
 // UTILITY: Extract all block IDs from editor content

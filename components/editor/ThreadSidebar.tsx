@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -16,14 +16,23 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   MessageCircle,
   AlertTriangle,
-  Check,
-  MoreHorizontal,
   Smile,
   X,
-  ChevronLeft,
   Archive,
+  Filter,
+  GraduationCap,
+  Hash,
+  Globe,
+  ArrowRight,
+  Send,
 } from "lucide-react";
 import { CommentInput } from "./CommentInput";
 import { useThreadContext } from "./thread-context";
@@ -32,18 +41,25 @@ import { useThreadContext } from "./thread-context";
 // TYPES
 // ============================================
 
-interface ThreadListItemProps {
-  thread: {
-    _id: Id<"threads">;
-    blockId: string;
-    type: "comment" | "dispute";
-    status: "open" | "resolved";
-    creatorName: string;
-    commentCount: number;
-    createdAt: number;
-  };
-  isSelected: boolean;
-  onClick: () => void;
+type FilterMode = "all" | "disputes" | "general" | "block-specific";
+
+interface FeedComment {
+  _id: Id<"comments">;
+  threadId: Id<"threads">;
+  blockId: string | null;
+  threadType: "comment" | "dispute";
+  threadStatus: "open" | "resolved";
+  isThreadArchived: boolean;
+  authorId: Id<"userProfiles">;
+  authorName: string;
+  authorEmail: string;
+  isProfessor: boolean;
+  contentJson: any;
+  mentions: Id<"userProfiles">[];
+  isDeleted: boolean;
+  createdAt: number;
+  editedAt: number | null;
+  reactions: Array<{ emoji: string; count: number; hasReacted: boolean }>;
 }
 
 // ============================================
@@ -77,7 +93,6 @@ function getInitials(name: string): string {
 }
 
 function getAvatarColor(name: string): string {
-  // Generate a consistent gradient based on name
   const colors = [
     "from-cyan-400 to-blue-500",
     "from-violet-400 to-purple-500",
@@ -153,37 +168,88 @@ function ReactionBadge({
 }
 
 // ============================================
-// COMMENT COMPONENT
+// BLOCK REFERENCE BADGE
 // ============================================
 
-function Comment({
+function BlockReferenceBadge({
+  blockId,
+  isDispute,
+  onJumpToBlock,
+}: {
+  blockId: string | null;
+  isDispute: boolean;
+  onJumpToBlock?: () => void;
+}) {
+  if (!blockId) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] h-5 px-1.5 gap-1 bg-muted/50 text-muted-foreground"
+      >
+        <Globe className="h-3 w-3" />
+        General
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "text-[10px] h-5 px-1.5 gap-1 cursor-pointer hover:bg-muted/80 transition-colors",
+        isDispute
+          ? "bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20"
+          : "bg-blue-500/10 text-blue-600 border-blue-500/30 hover:bg-blue-500/20"
+      )}
+      onClick={onJumpToBlock}
+    >
+      {isDispute ? (
+        <AlertTriangle className="h-3 w-3" />
+      ) : (
+        <Hash className="h-3 w-3" />
+      )}
+      Block
+      <ArrowRight className="h-3 w-3 ml-0.5" />
+    </Badge>
+  );
+}
+
+// ============================================
+// FEED COMMENT COMPONENT
+// ============================================
+
+function FeedCommentItem({
   comment,
   onAddReaction,
   onRemoveReaction,
-  canModerate,
-  onDelete,
+  onHoverBlock,
+  onJumpToBlock,
 }: {
-  comment: {
-    _id: Id<"comments">;
-    authorId: Id<"userProfiles">;
-    authorName: string;
-    contentJson: any;
-    isDeleted: boolean;
-    createdAt: number;
-    editedAt: number | null;
-    reactions: Array<{ emoji: string; count: number; hasReacted: boolean }>;
-  };
+  comment: FeedComment;
   onAddReaction: (commentId: Id<"comments">, emoji: string) => void;
   onRemoveReaction: (commentId: Id<"comments">, emoji: string) => void;
-  canModerate: boolean;
-  onDelete: (commentId: Id<"comments">) => void;
+  onHoverBlock: (blockId: string | null) => void;
+  onJumpToBlock: (blockId: string) => void;
 }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
 
+  const handleMouseEnter = () => {
+    setShowActions(true);
+    if (comment.blockId) {
+      onHoverBlock(comment.blockId);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowActions(false);
+    setShowEmojiPicker(false);
+    onHoverBlock(null);
+  };
+
   if (comment.isDeleted) {
     return (
-      <div className="py-3 px-1">
+      <div className="py-3 px-4 border-b border-border/50">
         <p className="text-sm text-muted-foreground italic">
           This message was deleted.
         </p>
@@ -191,7 +257,7 @@ function Comment({
     );
   }
 
-  // Extract text from contentJson (simplified - assumes basic structure)
+  // Extract text from contentJson
   const getTextContent = (json: any): string => {
     if (!json) return "";
     if (typeof json === "string") return json;
@@ -205,12 +271,14 @@ function Comment({
   // Render content with @mentions highlighted
   const renderContent = (json: any) => {
     const text = getTextContent(json);
-    // Simple @mention detection
     const parts = text.split(/(@\w+\s\w+)/g);
     return parts.map((part, i) => {
       if (part.startsWith("@")) {
         return (
-          <span key={i} className="text-violet-500 font-medium bg-violet-500/10 px-1 rounded">
+          <span
+            key={i}
+            className="text-violet-500 font-medium bg-violet-500/10 px-1 rounded"
+          >
             {part}
           </span>
         );
@@ -219,18 +287,39 @@ function Comment({
     });
   };
 
+  const isDispute = comment.threadType === "dispute";
+
   return (
     <div
-      className="group py-3"
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => {
-        setShowActions(false);
-        setShowEmojiPicker(false);
-      }}
+      className={cn(
+        "py-3 px-4 border-b border-border/50 transition-colors",
+        showActions && "bg-muted/30"
+      )}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
+      {/* Block Reference Badge */}
+      <div className="flex items-center justify-between mb-2">
+        <BlockReferenceBadge
+          blockId={comment.blockId}
+          isDispute={isDispute}
+          onJumpToBlock={
+            comment.blockId ? () => onJumpToBlock(comment.blockId!) : undefined
+          }
+        />
+        <span className="text-xs text-muted-foreground">
+          {formatRelativeTime(comment.createdAt)}
+        </span>
+      </div>
+
       <div className="flex gap-3">
         {/* Avatar */}
-        <Avatar className={cn("h-8 w-8 bg-gradient-to-br", getAvatarColor(comment.authorName))}>
+        <Avatar
+          className={cn(
+            "h-8 w-8 bg-gradient-to-br flex-shrink-0",
+            getAvatarColor(comment.authorName)
+          )}
+        >
           <AvatarFallback className="text-white text-xs font-medium bg-transparent">
             {getInitials(comment.authorName)}
           </AvatarFallback>
@@ -239,20 +328,34 @@ function Comment({
         {/* Content */}
         <div className="flex-1 min-w-0">
           {/* Header */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-foreground">
               {comment.authorName}
             </span>
-            <span className="text-xs text-muted-foreground">
-              {formatRelativeTime(comment.createdAt)}
-            </span>
+            {comment.isProfessor && (
+              <Badge
+                variant="secondary"
+                className="text-[10px] h-4 px-1.5 gap-0.5 bg-amber-500/15 text-amber-600 border-amber-500/30"
+              >
+                <GraduationCap className="h-3 w-3" />
+                Professor
+              </Badge>
+            )}
+            {comment.threadStatus === "resolved" && (
+              <Badge
+                variant="secondary"
+                className="text-[10px] h-4 px-1.5 bg-green-500/15 text-green-600"
+              >
+                Resolved
+              </Badge>
+            )}
             {comment.editedAt && (
               <span className="text-xs text-muted-foreground">(edited)</span>
             )}
           </div>
 
           {/* Message */}
-          <p className="text-sm text-foreground mt-0.5 leading-relaxed">
+          <p className="text-sm text-foreground mt-1 leading-relaxed">
             {renderContent(comment.contentJson)}
           </p>
 
@@ -279,18 +382,10 @@ function Comment({
         {/* Action buttons */}
         <div
           className={cn(
-            "flex items-start gap-1 transition-opacity",
+            "flex items-start gap-1 transition-opacity flex-shrink-0",
             showActions ? "opacity-100" : "opacity-0"
           )}
         >
-          {/* Resolve button (checkmark) */}
-          <Tooltip>
-            <TooltipTrigger render={<Button variant="ghost" size="icon-sm" className="h-6 w-6 text-muted-foreground" />}>
-              <Check className="h-3.5 w-3.5" />
-            </TooltipTrigger>
-            <TooltipContent>Mark as resolved</TooltipContent>
-          </Tooltip>
-
           {/* Emoji picker */}
           <div className="relative">
             <Tooltip>
@@ -318,25 +413,6 @@ function Comment({
               </div>
             )}
           </div>
-
-          {/* More actions */}
-          {canModerate && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-6 w-6 text-muted-foreground"
-                    onClick={() => onDelete(comment._id)}
-                  />
-                }
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </TooltipTrigger>
-              <TooltipContent>More actions</TooltipContent>
-            </Tooltip>
-          )}
         </div>
       </div>
     </div>
@@ -344,204 +420,50 @@ function Comment({
 }
 
 // ============================================
-// THREAD LIST ITEM
+// FILTER DROPDOWN
 // ============================================
 
-function ThreadListItem({ thread, isSelected, onClick }: ThreadListItemProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full text-left p-3 rounded-lg transition-colors",
-        isSelected
-          ? "bg-accent"
-          : "hover:bg-muted/50"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div
-          className={cn(
-            "mt-0.5 p-1.5 rounded",
-            thread.type === "dispute"
-              ? "bg-red-500/10 text-red-500"
-              : "bg-blue-500/10 text-blue-500"
-          )}
-        >
-          {thread.type === "dispute" ? (
-            <AlertTriangle className="h-3.5 w-3.5" />
-          ) : (
-            <MessageCircle className="h-3.5 w-3.5" />
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm truncate">
-              {thread.creatorName}
-            </span>
-            {thread.status === "resolved" && (
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                Resolved
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {thread.commentCount} {thread.commentCount === 1 ? "comment" : "comments"}
-          </p>
-        </div>
-
-        {/* Time */}
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatRelativeTime(thread.createdAt)}
-        </span>
-      </div>
-    </button>
-  );
-}
-
-// ============================================
-// THREAD DETAIL VIEW
-// ============================================
-
-function ThreadDetail({
-  threadId,
-  classId,
-  onBack,
+function FilterDropdown({
+  value,
+  onChange,
 }: {
-  threadId: Id<"threads">;
-  classId: Id<"classes">;
-  onBack: () => void;
+  value: FilterMode;
+  onChange: (value: FilterMode) => void;
 }) {
-  const threadData = useQuery(api.threads.getThread, { threadId });
-  const addReaction = useMutation(api.threads.addReaction);
-  const removeReaction = useMutation(api.threads.removeReaction);
-  const createComment = useMutation(api.threads.createComment);
-  const deleteComment = useMutation(api.threads.deleteAnyComment);
-  const resolveThread = useMutation(api.threads.resolveThread);
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  if (!threadData) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  const { thread, comments } = threadData;
-
-  const handleAddReaction = async (commentId: Id<"comments">, emoji: string) => {
-    await addReaction({
-      targetType: "comment",
-      targetId: commentId as string,
-      emoji,
-    });
-  };
-
-  const handleRemoveReaction = async (commentId: Id<"comments">, emoji: string) => {
-    await removeReaction({
-      targetType: "comment",
-      targetId: commentId as string,
-      emoji,
-    });
-  };
-
-  const handleSubmitComment = async (contentJson: any, mentions: Id<"userProfiles">[]) => {
-    setIsSubmitting(true);
-    try {
-      await createComment({
-        threadId,
-        contentJson,
-        mentions,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (commentId: Id<"comments">) => {
-    if (confirm("Are you sure you want to delete this comment?")) {
-      await deleteComment({ commentId });
-    }
-  };
-
-  const handleResolve = async () => {
-    await resolveThread({ threadId });
+  const labels: Record<FilterMode, string> = {
+    all: "All comments",
+    disputes: "Disputes only",
+    general: "General discussion",
+    "block-specific": "Block-specific",
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b">
-        <Button variant="ghost" size="icon-sm" onClick={onBack}>
-          <ChevronLeft className="h-4 w-4" />
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs">
+          <Filter className="h-3.5 w-3.5" />
+          {labels[value]}
         </Button>
-        <div className="flex-1 flex items-center gap-2">
-          <div
-            className={cn(
-              "p-1.5 rounded",
-              thread.type === "dispute"
-                ? "bg-red-500/10 text-red-500"
-                : "bg-blue-500/10 text-blue-500"
-            )}
-          >
-            {thread.type === "dispute" ? (
-              <AlertTriangle className="h-3.5 w-3.5" />
-            ) : (
-              <MessageCircle className="h-3.5 w-3.5" />
-            )}
-          </div>
-          <span className="font-medium text-sm">
-            {thread.type === "dispute" ? "Dispute" : "Discussion"}
-          </span>
-          {thread.status === "resolved" && (
-            <Badge variant="secondary" className="text-xs">Resolved</Badge>
-          )}
-        </div>
-        {thread.status === "open" && thread.type === "dispute" && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResolve}
-            className="text-green-600 hover:text-green-700"
-          >
-            <Check className="h-3.5 w-3.5 mr-1" />
-            Resolve
-          </Button>
-        )}
-      </div>
-
-      {/* Comments */}
-      <ScrollArea className="flex-1">
-        <div className="px-4 divide-y">
-          {comments.map((comment) => (
-            <Comment
-              key={comment._id}
-              comment={comment}
-              onAddReaction={handleAddReaction}
-              onRemoveReaction={handleRemoveReaction}
-              canModerate={true} // TODO: Check actual permissions
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      </ScrollArea>
-
-      {/* Reply input */}
-      {thread.status === "open" && (
-        <div className="p-4 border-t bg-background">
-          <CommentInput
-            classId={classId}
-            onSubmit={handleSubmitComment}
-            placeholder="Reply to thread..."
-            isSubmitting={isSubmitting}
-          />
-        </div>
-      )}
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={() => onChange("all")}>
+          <MessageCircle className="h-4 w-4 mr-2" />
+          All comments
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChange("disputes")}>
+          <AlertTriangle className="h-4 w-4 mr-2 text-red-500" />
+          Disputes only
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChange("general")}>
+          <Globe className="h-4 w-4 mr-2" />
+          General discussion
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChange("block-specific")}>
+          <Hash className="h-4 w-4 mr-2" />
+          Block-specific
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -556,48 +478,124 @@ export function ThreadSidebar() {
     sidebarOpen,
     selectedBlockId,
     selectBlock,
+    setHoveredBlockId,
     closeSidebar,
-    threads,
+    createGeneralThread,
+    isCreatingThread,
   } = useThreadContext();
 
-  const [selectedThreadId, setSelectedThreadId] = useState<Id<"threads"> | null>(null);
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [showArchived, setShowArchived] = useState(false);
+  const [isSubmittingGeneral, setIsSubmittingGeneral] = useState(false);
+
+  // Fetch flat feed of all comments
+  const allComments = useQuery(
+    api.threads.listAllCommentsForProblem,
+    problemId ? { problemId } : "skip"
+  );
 
   const ghostThreads = useQuery(
     api.threads.listGhostThreads,
     problemId ? { problemId } : "skip"
   );
 
+  const addReaction = useMutation(api.threads.addReaction);
+  const removeReaction = useMutation(api.threads.removeReaction);
+
+  const handleAddReaction = useCallback(
+    async (commentId: Id<"comments">, emoji: string) => {
+      await addReaction({
+        targetType: "comment",
+        targetId: commentId as string,
+        emoji,
+      });
+    },
+    [addReaction]
+  );
+
+  const handleRemoveReaction = useCallback(
+    async (commentId: Id<"comments">, emoji: string) => {
+      await removeReaction({
+        targetType: "comment",
+        targetId: commentId as string,
+        emoji,
+      });
+    },
+    [removeReaction]
+  );
+
+  const handleJumpToBlock = useCallback(
+    (blockId: string) => {
+      selectBlock(blockId);
+      // Scroll to the block in the editor
+      const element = document.querySelector(
+        `[data-data-block-id="${blockId}"]`
+      );
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    },
+    [selectBlock]
+  );
+
+  const handleSubmitGeneralComment = useCallback(
+    async (contentJson: any, mentions: Id<"userProfiles">[]) => {
+      setIsSubmittingGeneral(true);
+      try {
+        await createGeneralThread(contentJson, mentions);
+      } finally {
+        setIsSubmittingGeneral(false);
+      }
+    },
+    [createGeneralThread]
+  );
+
   if (!sidebarOpen || !problemId || !classId) return null;
 
-  const activeThreads = threads?.filter((t) => !t.isArchived) ?? [];
-  const filteredThreads = selectedBlockId
-    ? activeThreads.filter((t) => t.blockId === selectedBlockId)
-    : activeThreads;
+  // Filter comments based on mode
+  let filteredComments = allComments ?? [];
 
-  // If a thread is selected, show the detail view
-  if (selectedThreadId) {
-    return (
-      <div className="w-[40%] border-l bg-background flex flex-col h-full">
-        <ThreadDetail
-          threadId={selectedThreadId}
-          classId={classId}
-          onBack={() => setSelectedThreadId(null)}
-        />
-      </div>
+  // Don't show archived threads in feed by default
+  if (!showArchived) {
+    filteredComments = filteredComments.filter((c) => !c.isThreadArchived);
+  }
+
+  // Apply filter mode
+  switch (filterMode) {
+    case "disputes":
+      filteredComments = filteredComments.filter(
+        (c) => c.threadType === "dispute"
+      );
+      break;
+    case "general":
+      filteredComments = filteredComments.filter((c) => c.blockId === null);
+      break;
+    case "block-specific":
+      filteredComments = filteredComments.filter((c) => c.blockId !== null);
+      break;
+  }
+
+  // If a block is selected, filter to that block
+  if (selectedBlockId) {
+    filteredComments = filteredComments.filter(
+      (c) => c.blockId === selectedBlockId
     );
   }
 
+  const activeCommentCount = allComments?.filter(
+    (c) => !c.isThreadArchived && !c.isDeleted
+  ).length ?? 0;
+
   return (
-    <div className="w-[40%] border-l bg-background flex flex-col h-full">
+    <div className="w-[40%] border-l bg-background flex flex-col h-[93vh]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+      <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4" />
           <h3 className="font-semibold text-sm">Comments</h3>
-          {activeThreads.length > 0 && (
+          {activeCommentCount > 0 && (
             <Badge variant="secondary" className="text-xs h-5 px-1.5">
-              {activeThreads.length}
+              {activeCommentCount}
             </Badge>
           )}
         </div>
@@ -616,7 +614,9 @@ export function ThreadSidebar() {
                 <Archive className="h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent>
-                {showArchived ? "Hide archived" : `Show ${ghostThreads?.length} archived`}
+                {showArchived
+                  ? "Hide archived"
+                  : `Show ${ghostThreads?.length} archived`}
               </TooltipContent>
             </Tooltip>
           )}
@@ -626,76 +626,64 @@ export function ThreadSidebar() {
         </div>
       </div>
 
-      {/* Filter indicator */}
-      {selectedBlockId && (
-        <div className="px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            Filtered to selected block
-          </span>
+      {/* Filter bar */}
+      <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between flex-shrink-0">
+        <FilterDropdown value={filterMode} onChange={setFilterMode} />
+        {selectedBlockId && (
           <Button
             variant="ghost"
             size="xs"
             onClick={() => selectBlock(null)}
             className="text-xs h-5"
           >
-            Clear
+            Clear filter
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Thread list */}
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {filteredThreads.length === 0 && !showArchived ? (
-            <div className="text-center py-8 px-4">
-              <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground mt-2">
-                {selectedBlockId
-                  ? "No comments on this block"
-                  : "No comments yet"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Click on a block to add a comment
-              </p>
-            </div>
-          ) : (
-            <>
-              {filteredThreads.map((thread) => (
-                <ThreadListItem
-                  key={thread._id}
-                  thread={thread}
-                  isSelected={false}
-                  onClick={() => setSelectedThreadId(thread._id)}
-                />
-              ))}
-
-              {/* Archived threads */}
-              {showArchived && (ghostThreads?.length ?? 0) > 0 && (
-                <>
-                  <div className="px-2 py-2 mt-2">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Archive className="h-3 w-3" />
-                      <span>Archived ({ghostThreads?.length})</span>
-                    </div>
-                  </div>
-                  {ghostThreads?.map((thread) => (
-                    <ThreadListItem
-                      key={thread._id}
-                      thread={{
-                        ...thread,
-                        status: "open",
-                        isArchived: true,
-                      } as any}
-                      isSelected={false}
-                      onClick={() => setSelectedThreadId(thread._id)}
-                    />
-                  ))}
-                </>
-              )}
-            </>
-          )}
-        </div>
+      {/* Comment feed - Scrollable area */}
+      <ScrollArea className="flex-1 overflow-hidden">
+        {filteredComments.length === 0 ? (
+          <div className="text-center py-12 px-4">
+            <MessageCircle className="h-10 w-10 mx-auto text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground mt-3">
+              {selectedBlockId
+                ? "No comments on this block yet"
+                : "No comments yet"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Click on a block or use the input below to start a discussion
+            </p>
+          </div>
+        ) : (
+          <div>
+            {filteredComments.map((comment) => (
+              <FeedCommentItem
+                key={comment._id}
+                comment={comment}
+                onAddReaction={handleAddReaction}
+                onRemoveReaction={handleRemoveReaction}
+                onHoverBlock={setHoveredBlockId}
+                onJumpToBlock={handleJumpToBlock}
+              />
+            ))}
+          </div>
+        )}
       </ScrollArea>
+
+      {/* General comment input */}
+      <div className="p-4 border-t bg-muted/20 flex-shrink-0">
+        <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+          <Globe className="h-3 w-3" />
+          <span>General discussion</span>
+        </div>
+        <CommentInput
+          classId={classId}
+          onSubmit={handleSubmitGeneralComment}
+          placeholder="Add a general comment..."
+          isSubmitting={isSubmittingGeneral || isCreatingThread}
+        />
+      </div>
     </div>
   );
 }

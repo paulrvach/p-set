@@ -32,3 +32,11 @@
     padding: 2rem 1.5rem 20vh;
   }
 }
+
+.has-comment-focus {
+  background-color: hsl(var(--accent) / 0.4);
+  transition: background-color 0.2s ease;
+  border-radius: 0.25rem;
+}
+
+
