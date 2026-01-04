@@ -104,6 +104,7 @@ export default defineSchema({
   // ============================================
   comments: defineTable({
     threadId: v.id("threads"),
+    parentId: v.optional(v.id("comments")), // Reply to specific comment
     authorId: v.id("userProfiles"),
     contentJson: v.any(), // Rich text content (bold, italic, code, mentions)
     mentions: v.array(v.id("userProfiles")), // Extracted @mentions

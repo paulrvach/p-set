@@ -46,6 +46,7 @@ interface ThreadContextValue {
   hoveredBlockId: string | null;
   setHoveredBlockId: (id: string | null) => void;
   newThreadBlockId: string | null;
+  newThreadPosition: { x: number; y: number } | null;
   isCreatingThread: boolean;
   isCommentsVisible: boolean;
   toggleCommentsVisibility: () => void;
@@ -59,7 +60,7 @@ interface ThreadContextValue {
 
   // Actions
   selectBlock: (blockId: string | null) => void;
-  openNewThread: (blockId: string) => void;
+  openNewThread: (blockId: string, position: { x: number; y: number }) => void;
   createThread: (
     type: "comment" | "dispute",
     contentJson: any,
@@ -101,6 +102,7 @@ export function ThreadProvider({
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [hoveredBlockId, setHoveredBlockIdState] = useState<string | null>(null);
   const [newThreadBlockId, setNewThreadBlockId] = useState<string | null>(null);
+  const [newThreadPosition, setNewThreadPosition] = useState<{ x: number; y: number } | null>(null);
   const [isCreatingThread, setIsCreatingThread] = useState(false);
   const [isCommentsVisible, setIsCommentsVisible] = useState(true);
 
@@ -167,9 +169,10 @@ export function ThreadProvider({
     }
   }, []);
 
-  const openNewThread = useCallback((blockId: string) => {
-    console.log("[ThreadContext] openNewThread:", blockId);
+  const openNewThread = useCallback((blockId: string, position: { x: number; y: number }) => {
+    console.log("[ThreadContext] openNewThread:", blockId, position);
     setNewThreadBlockId(blockId);
+    setNewThreadPosition(position);
     setSelectedBlockId(blockId);
     setSidebarOpen(true);
   }, []);
@@ -195,6 +198,7 @@ export function ThreadProvider({
           },
         });
         setNewThreadBlockId(null);
+        setNewThreadPosition(null);
       } catch (error) {
         console.error("[ThreadContext] Failed to create thread:", error);
         throw error;
@@ -234,6 +238,7 @@ export function ThreadProvider({
   const cancelNewThread = useCallback(() => {
     console.log("[ThreadContext] cancelNewThread");
     setNewThreadBlockId(null);
+    setNewThreadPosition(null);
   }, []);
 
   const closeSidebar = useCallback(() => {
@@ -254,6 +259,7 @@ export function ThreadProvider({
       hoveredBlockId,
       setHoveredBlockId,
       newThreadBlockId,
+      newThreadPosition,
       isCreatingThread,
       isCommentsVisible,
       toggleCommentsVisibility,
@@ -280,6 +286,7 @@ export function ThreadProvider({
       hoveredBlockId,
       setHoveredBlockId,
       newThreadBlockId,
+      newThreadPosition,
       isCreatingThread,
       isCommentsVisible,
       toggleCommentsVisibility,

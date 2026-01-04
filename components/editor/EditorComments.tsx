@@ -3,6 +3,7 @@
 import { useThreadContext } from "./thread-context";
 import { CommentGutter } from "./CommentGutter";
 import { NewThreadInput } from "./CommentInput";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/tiptap-ui-primitive/popover";
 
 interface EditorCommentsProps {
   editor: any;
@@ -13,6 +14,7 @@ export function EditorComments({ editor, scrollContainer }: EditorCommentsProps)
   const {
     canShowComments,
     newThreadBlockId,
+    newThreadPosition,
     classId,
     problemId,
     isCreatingThread,
@@ -40,16 +42,35 @@ export function EditorComments({ editor, scrollContainer }: EditorCommentsProps)
 
       {/* New thread input popover */}
       {newThreadBlockId && classId && problemId && (
-        <div className="absolute right-4 top-4 z-50 w-80">
-          <NewThreadInput
-            classId={classId}
-            problemId={problemId}
-            blockId={newThreadBlockId}
-            onSubmit={handleCreateThread}
-            onCancel={cancelNewThread}
-            isSubmitting={isCreatingThread}
-          />
-        </div>
+        <Popover 
+          open={!!newThreadBlockId} 
+          onOpenChange={(open) => {
+            if (!open) cancelNewThread();
+          }}
+        >
+          <PopoverTrigger asChild>
+            <div 
+              style={{ 
+                position: 'fixed', 
+                left: newThreadPosition?.x ?? 0, 
+                top: newThreadPosition?.y ?? 0,
+                width: 1,
+                height: 1,
+                visibility: 'hidden'
+              }} 
+            />
+          </PopoverTrigger>
+          <PopoverContent side="right" align="start" sideOffset={10} className="w-80 p-0 border-none shadow-none">
+            <NewThreadInput
+              classId={classId}
+              problemId={problemId}
+              blockId={newThreadBlockId}
+              onSubmit={handleCreateThread}
+              onCancel={cancelNewThread}
+              isSubmitting={isCreatingThread}
+            />
+          </PopoverContent>
+        </Popover>
       )}
     </>
   );

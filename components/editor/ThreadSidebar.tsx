@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -33,6 +33,8 @@ import {
   Globe,
   ArrowRight,
   Send,
+  CornerDownLeft,
+  Reply,
 } from "lucide-react";
 import { CommentInput } from "./CommentInput";
 import { useThreadContext } from "./thread-context";
@@ -59,6 +61,7 @@ interface FeedComment {
   isDeleted: boolean;
   createdAt: number;
   editedAt: number | null;
+  parentId?: Id<"comments">;
   reactions: Array<{ emoji: string; count: number; hasReacted: boolean }>;
 }
 
@@ -215,58 +218,76 @@ function BlockReferenceBadge({
 }
 
 // ============================================
-// FEED COMMENT COMPONENT
+// THREAD COMPONENTS
 // ============================================
 
-function FeedCommentItem({
+// Helper to extract text from contentJson
+function getTextContent(json: any): string {
+  if (!json) return "";
+  if (typeof json === "string") return json;
+  if (json.text) return json.text;
+  if (json.content) {
+    return json.content.map((node: any) => getTextContent(node)).join("");
+  }
+  return "";
+}
+
+function ParentCommentPreview({
+  parentComment,
+}: {
+  parentComment: FeedComment;
+}) {
+  const text = getTextContent(parentComment.contentJson);
+  const truncated = text.length > 100 ? text.slice(0, 100) + "..." : text;
+
+  return (
+    <div className="mb-2 px-2.5 py-1.5 bg-muted/10  rounded-r opacity-70">
+      <div className="flex items-center gap-2">
+        <Reply className="h-4 w-4 opacity-70 scale-x-[-1]" />
+        <Avatar
+          className={cn(
+            "h-4 w-4 bg-gradient-to-br flex-shrink-0",
+            getAvatarColor(parentComment.authorName)
+          )}
+        >
+          <AvatarFallback className="text-white text-[9px] font-medium bg-transparent">
+            {getInitials(parentComment.authorName)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-xs font-medium text-foreground/70">
+          {parentComment.authorName}
+        </span>
+        <span className="text-xs text-muted-foreground/70">{truncated}</span>
+      </div>
+    </div>
+  );
+}
+
+function ThreadCommentItem({
   comment,
+  parentComment,
   onAddReaction,
   onRemoveReaction,
-  onHoverBlock,
-  onJumpToBlock,
+  onReply,
 }: {
   comment: FeedComment;
+  parentComment?: FeedComment;
   onAddReaction: (commentId: Id<"comments">, emoji: string) => void;
   onRemoveReaction: (commentId: Id<"comments">, emoji: string) => void;
-  onHoverBlock: (blockId: string | null) => void;
-  onJumpToBlock: (blockId: string) => void;
+  onReply: () => void;
 }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
 
-  const handleMouseEnter = () => {
-    setShowActions(true);
-    if (comment.blockId) {
-      onHoverBlock(comment.blockId);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setShowActions(false);
-    setShowEmojiPicker(false);
-    onHoverBlock(null);
-  };
-
   if (comment.isDeleted) {
     return (
-      <div className="py-3 px-4 border-b border-border/50">
-        <p className="text-sm text-muted-foreground italic">
-          This message was deleted.
+      <div className="py-2 px-4">
+        <p className="text-xs text-muted-foreground italic">
+          Message deleted
         </p>
       </div>
     );
   }
-
-  // Extract text from contentJson
-  const getTextContent = (json: any): string => {
-    if (!json) return "";
-    if (typeof json === "string") return json;
-    if (json.text) return json.text;
-    if (json.content) {
-      return json.content.map((node: any) => getTextContent(node)).join("");
-    }
-    return "";
-  };
 
   // Render content with @mentions highlighted
   const renderContent = (json: any) => {
@@ -287,40 +308,20 @@ function FeedCommentItem({
     });
   };
 
-  const isDispute = comment.threadType === "dispute";
-
   return (
-    <div
-      className={cn(
-        "py-3 px-4 border-b border-border/50 transition-colors",
-        showActions && "bg-muted/30"
-      )}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Block Reference Badge */}
-      <div className="flex items-center justify-between mb-2">
-        <BlockReferenceBadge
-          blockId={comment.blockId}
-          isDispute={isDispute}
-          onJumpToBlock={
-            comment.blockId ? () => onJumpToBlock(comment.blockId!) : undefined
-          }
-        />
-        <span className="text-xs text-muted-foreground">
-          {formatRelativeTime(comment.createdAt)}
-        </span>
-      </div>
+    <div className="py-2 px-4 hover:bg-muted/30 transition-colors group relative">
+      {/* Show parent comment preview if this is a reply */}
+      {parentComment && <ParentCommentPreview parentComment={parentComment} />}
 
       <div className="flex gap-3">
         {/* Avatar */}
         <Avatar
           className={cn(
-            "h-8 w-8 bg-gradient-to-br flex-shrink-0",
+            "h-6 w-6 bg-gradient-to-br flex-shrink-0 mt-0.5",
             getAvatarColor(comment.authorName)
           )}
         >
-          <AvatarFallback className="text-white text-xs font-medium bg-transparent">
+          <AvatarFallback className="text-white text-[10px] font-medium bg-transparent">
             {getInitials(comment.authorName)}
           </AvatarFallback>
         </Avatar>
@@ -328,40 +329,38 @@ function FeedCommentItem({
         {/* Content */}
         <div className="flex-1 min-w-0">
           {/* Header */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm text-foreground">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className="font-semibold text-xs text-foreground">
               {comment.authorName}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              {new Date(comment.createdAt).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
             </span>
             {comment.isProfessor && (
               <Badge
                 variant="secondary"
-                className="text-[10px] h-4 px-1.5 gap-0.5 bg-amber-500/15 text-amber-600 border-amber-500/30"
+                className="text-[10px] h-3.5 px-1 gap-0.5 bg-amber-500/15 text-amber-600 border-amber-500/30"
               >
-                <GraduationCap className="h-3 w-3" />
-                Professor
-              </Badge>
-            )}
-            {comment.threadStatus === "resolved" && (
-              <Badge
-                variant="secondary"
-                className="text-[10px] h-4 px-1.5 bg-green-500/15 text-green-600"
-              >
-                Resolved
+                <GraduationCap className="h-2.5 w-2.5" />
+                Prof
               </Badge>
             )}
             {comment.editedAt && (
-              <span className="text-xs text-muted-foreground">(edited)</span>
+              <span className="text-[10px] text-muted-foreground">(edited)</span>
             )}
           </div>
 
           {/* Message */}
-          <p className="text-sm text-foreground mt-1 leading-relaxed">
+          <p className="text-sm text-foreground leading-relaxed">
             {renderContent(comment.contentJson)}
           </p>
 
           {/* Reactions */}
           {comment.reactions.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
+            <div className="flex flex-wrap gap-1 mt-1.5">
               {comment.reactions.map((reaction) => (
                 <ReactionBadge
                   key={reaction.emoji}
@@ -382,10 +381,27 @@ function FeedCommentItem({
         {/* Action buttons */}
         <div
           className={cn(
-            "flex items-start gap-1 transition-opacity flex-shrink-0",
+            "flex items-start gap-1 transition-opacity flex-shrink-0 pt-0.5",
             showActions ? "opacity-100" : "opacity-0"
           )}
         >
+          {/* Reply */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-6 w-6 text-muted-foreground"
+                  onClick={onReply}
+                />
+              }
+            >
+              <CornerDownLeft className="h-3.5 w-3.5" />
+            </TooltipTrigger>
+            <TooltipContent>Reply</TooltipContent>
+          </Tooltip>
+
           {/* Emoji picker */}
           <div className="relative">
             <Tooltip>
@@ -401,7 +417,7 @@ function FeedCommentItem({
               >
                 <Smile className="h-3.5 w-3.5" />
               </TooltipTrigger>
-              <TooltipContent>Add reaction</TooltipContent>
+              <TooltipContent>React</TooltipContent>
             </Tooltip>
 
             {showEmojiPicker && (
@@ -415,6 +431,185 @@ function FeedCommentItem({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FeedThread({
+  comments,
+  classId,
+  onAddReaction,
+  onRemoveReaction,
+  onHoverBlock,
+  onJumpToBlock,
+  onCreateComment,
+}: {
+  comments: FeedComment[];
+  classId: Id<"classes">;
+  onAddReaction: (commentId: Id<"comments">, emoji: string) => void;
+  onRemoveReaction: (commentId: Id<"comments">, emoji: string) => void;
+  onHoverBlock: (blockId: string | null) => void;
+  onJumpToBlock: (blockId: string) => void;
+  onCreateComment: (
+    threadId: Id<"threads">,
+    contentJson: any,
+    mentions: Id<"userProfiles">[],
+    parentId?: Id<"comments">
+  ) => Promise<void>;
+}) {
+  const [isReplying, setIsReplying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [replyParentId, setReplyParentId] = useState<Id<"comments"> | undefined>(
+    undefined
+  );
+  const [replyAuthorName, setReplyAuthorName] = useState<string>("");
+
+  if (comments.length === 0) return null;
+
+  const firstComment = comments[0];
+  const isDispute = firstComment.threadType === "dispute";
+
+  // Create a map of comments by ID for quick lookup
+  const commentMap = new Map<Id<"comments">, FeedComment>();
+  comments.forEach((comment) => {
+    commentMap.set(comment._id, comment);
+  });
+
+  // Flatten comments in chronological order
+  const sortedComments = [...comments].sort((a, b) => a.createdAt - b.createdAt);
+
+  const handleReply = (commentId: Id<"comments">, authorName: string) => {
+    setIsReplying(true);
+    setReplyParentId(commentId);
+    setReplyAuthorName(authorName);
+  };
+
+  const handleReplyToThread = () => {
+    setIsReplying(true);
+    setReplyParentId(undefined);
+    setReplyAuthorName("");
+  };
+
+  const handleSubmit = async (
+    contentJson: any,
+    mentions: Id<"userProfiles">[]
+  ) => {
+    setIsSubmitting(true);
+    try {
+      await onCreateComment(
+        firstComment.threadId,
+        contentJson,
+        mentions,
+        replyParentId
+      );
+      setIsReplying(false);
+      setReplyParentId(undefined);
+      setReplyAuthorName("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMouseEnter = () => {
+    if (firstComment.blockId) {
+      onHoverBlock(firstComment.blockId);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    onHoverBlock(null);
+  };
+
+  return (
+    <div 
+      className="border-b border-border/50 pb-2 mb-2"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Thread Header */}
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/20">
+        <div className="flex items-center gap-2">
+          <BlockReferenceBadge
+            blockId={firstComment.blockId}
+            isDispute={isDispute}
+            onJumpToBlock={
+              firstComment.blockId
+                ? () => onJumpToBlock(firstComment.blockId!)
+                : undefined
+            }
+          />
+          {firstComment.threadStatus === "resolved" && (
+            <Badge
+              variant="secondary"
+              className="text-[10px] h-4 px-1.5 bg-green-500/15 text-green-600"
+            >
+              Resolved
+            </Badge>
+          )}
+        </div>
+        {/* Actions for thread? (Resolve, etc - logic requires access check) */}
+      </div>
+
+      {/* Comments - Flat list with parent previews */}
+      <div className="flex flex-col">
+        {sortedComments.map((comment) => {
+          const parentComment = comment.parentId
+            ? commentMap.get(comment.parentId)
+            : undefined;
+
+          return (
+            <ThreadCommentItem
+              key={comment._id}
+              comment={comment}
+              parentComment={parentComment}
+              onAddReaction={onAddReaction}
+              onRemoveReaction={onRemoveReaction}
+              onReply={() => handleReply(comment._id, comment.authorName)}
+            />
+          );
+        })}
+      </div>
+
+      {/* Reply Input */}
+      {isReplying ? (
+        <div className="px-4 pb-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+          <CommentInput
+            classId={classId}
+            onSubmit={handleSubmit}
+            placeholder={
+              replyParentId
+                ? `Reply to ${replyAuthorName}...`
+                : "Reply to thread..."
+            }
+            isSubmitting={isSubmitting}
+            autoFocus
+          />
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setIsReplying(false);
+              setReplyParentId(undefined);
+              setReplyAuthorName("");
+            }}
+            className="mt-1 h-6 text-xs text-muted-foreground"
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <div className="px-4 py-1 opacity-0 hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground w-full justify-start hover:text-foreground"
+            onClick={handleReplyToThread}
+          >
+            <CornerDownLeft className="h-3 w-3 mr-2" />
+            Reply to thread...
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -439,11 +634,9 @@ function FilterDropdown({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs">
-          <Filter className="h-3.5 w-3.5" />
-          {labels[value]}
-        </Button>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" />}>
+        <Filter className="h-3.5 w-3.5" />
+        {labels[value]}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onClick={() => onChange("all")}>
@@ -501,6 +694,7 @@ export function ThreadSidebar() {
 
   const addReaction = useMutation(api.threads.addReaction);
   const removeReaction = useMutation(api.threads.removeReaction);
+  const createComment = useMutation(api.threads.createComment);
 
   const handleAddReaction = useCallback(
     async (commentId: Id<"comments">, emoji: string) => {
@@ -522,6 +716,23 @@ export function ThreadSidebar() {
       });
     },
     [removeReaction]
+  );
+
+  const handleCreateComment = useCallback(
+    async (
+      threadId: Id<"threads">,
+      contentJson: any,
+      mentions: Id<"userProfiles">[],
+      parentId?: Id<"comments">
+    ) => {
+      await createComment({
+        threadId,
+        contentJson,
+        mentions,
+        parentId,
+      });
+    },
+    [createComment]
   );
 
   const handleJumpToBlock = useCallback(
@@ -549,8 +760,6 @@ export function ThreadSidebar() {
     },
     [createGeneralThread]
   );
-
-  if (!sidebarOpen || !problemId || !classId) return null;
 
   // Filter comments based on mode
   let filteredComments = allComments ?? [];
@@ -582,9 +791,36 @@ export function ThreadSidebar() {
     );
   }
 
+  const groupedThreads = useMemo(() => {
+    if (!filteredComments) return [];
+
+    const threads = new Map<string, FeedComment[]>();
+    filteredComments.forEach((c) => {
+      const t = threads.get(c.threadId) || [];
+      t.push(c);
+      threads.set(c.threadId, t);
+    });
+
+    const result = Array.from(threads.values());
+
+    // Sort comments within threads (oldest first)
+    result.forEach((t) => t.sort((a, b) => a.createdAt - b.createdAt));
+
+    // Sort threads by most recent activity (latest comment)
+    result.sort((a, b) => {
+      const lastA = a[a.length - 1].createdAt;
+      const lastB = b[b.length - 1].createdAt;
+      return lastB - lastA; // Newest first
+    });
+
+    return result;
+  }, [filteredComments]);
+
   const activeCommentCount = allComments?.filter(
     (c) => !c.isThreadArchived && !c.isDeleted
   ).length ?? 0;
+
+  if (!sidebarOpen || !problemId || !classId) return null;
 
   return (
     <div className="w-[40%] border-l bg-background flex flex-col h-[93vh]">
@@ -643,7 +879,7 @@ export function ThreadSidebar() {
 
       {/* Comment feed - Scrollable area */}
       <ScrollArea className="flex-1 overflow-hidden">
-        {filteredComments.length === 0 ? (
+        {groupedThreads.length === 0 ? (
           <div className="text-center py-12 px-4">
             <MessageCircle className="h-10 w-10 mx-auto text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground mt-3">
@@ -657,14 +893,16 @@ export function ThreadSidebar() {
           </div>
         ) : (
           <div>
-            {filteredComments.map((comment) => (
-              <FeedCommentItem
-                key={comment._id}
-                comment={comment}
+            {groupedThreads.map((comments) => (
+              <FeedThread
+                key={comments[0].threadId}
+                comments={comments}
+                classId={classId}
                 onAddReaction={handleAddReaction}
                 onRemoveReaction={handleRemoveReaction}
                 onHoverBlock={setHoveredBlockId}
                 onJumpToBlock={handleJumpToBlock}
+                onCreateComment={handleCreateComment}
               />
             ))}
           </div>
@@ -680,7 +918,7 @@ export function ThreadSidebar() {
         <CommentInput
           classId={classId}
           onSubmit={handleSubmitGeneralComment}
-          placeholder="Add a general comment..."
+          placeholder="Start a new discussion..."
           isSubmitting={isSubmittingGeneral || isCreatingThread}
         />
       </div>

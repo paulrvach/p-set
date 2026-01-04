@@ -173,6 +173,7 @@ export const getThread = query({
           isDeleted: v.boolean(),
           createdAt: v.number(),
           editedAt: v.union(v.number(), v.null()),
+          parentId: v.optional(v.id("comments")),
           reactions: v.array(
             v.object({
               emoji: v.string(),
@@ -237,6 +238,7 @@ export const getThread = query({
           isDeleted: comment.isDeleted,
           createdAt: comment.createdAt,
           editedAt: comment.editedAt ?? null,
+          parentId: comment.parentId,
           reactions: reactionArray,
         };
       })
@@ -318,6 +320,7 @@ export const listAllCommentsForProblem = query({
     v.object({
       _id: v.id("comments"),
       threadId: v.id("threads"),
+      parentId: v.optional(v.id("comments")),
       blockId: v.union(v.string(), v.null()),
       threadType: v.union(v.literal("comment"), v.literal("dispute")),
       threadStatus: v.union(v.literal("open"), v.literal("resolved")),
@@ -363,6 +366,7 @@ export const listAllCommentsForProblem = query({
     const allComments: Array<{
       _id: Id<"comments">;
       threadId: Id<"threads">;
+      parentId?: Id<"comments">;
       blockId: string | null;
       threadType: "comment" | "dispute";
       threadStatus: "open" | "resolved";
@@ -418,6 +422,7 @@ export const listAllCommentsForProblem = query({
         allComments.push({
           _id: comment._id,
           threadId: thread._id,
+          parentId: comment.parentId,
           blockId: thread.blockId ?? null,
           threadType: thread.type,
           threadStatus: thread.status,
@@ -553,6 +558,7 @@ export const createThread = mutation({
 export const createComment = mutation({
   args: {
     threadId: v.id("threads"),
+    parentId: v.optional(v.id("comments")), // Optional - for nested replies
     contentJson: v.any(),
     mentions: v.array(v.id("userProfiles")),
   },
@@ -568,6 +574,7 @@ export const createComment = mutation({
     // Create comment
     const commentId: Id<"comments"> = await ctx.db.insert("comments", {
       threadId: args.threadId,
+      parentId: args.parentId,
       authorId: profile._id,
       contentJson: args.contentJson,
       mentions: args.mentions,
@@ -616,6 +623,27 @@ export const createComment = mutation({
         isRead: false,
         createdAt: Date.now(),
       });
+    }
+
+    // Notify parent comment author (if different from thread creator and current user and not mentioned)
+    if (args.parentId) {
+      const parentComment = await ctx.db.get(args.parentId);
+      if (
+        parentComment &&
+        parentComment.authorId !== profile._id &&
+        parentComment.authorId !== thread.createdBy &&
+        !args.mentions.includes(parentComment.authorId)
+      ) {
+        await ctx.db.insert("notifications", {
+          userId: parentComment.authorId,
+          type: "reply",
+          threadId: args.threadId,
+          commentId,
+          actorId: profile._id,
+          isRead: false,
+          createdAt: Date.now(),
+        });
+      }
     }
 
     return { commentId };
