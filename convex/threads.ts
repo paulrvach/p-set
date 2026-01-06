@@ -569,7 +569,14 @@ export const createComment = mutation({
     const thread = await ctx.db.get(args.threadId);
     if (!thread) throw new Error("Thread not found");
 
-    const { assignment } = await requireProblemAccess(ctx, thread.problemId);
+    const { assignment, klass } = await requireProblemAccess(ctx, thread.problemId);
+
+    // Block comments on resolved disputes unless viewer is the professor
+    if (thread.type === "dispute" && thread.status === "resolved") {
+      if (klass.professorId !== profile._id) {
+        throw new Error("Only the professor can reply to resolved disputes");
+      }
+    }
 
     // Create comment
     const commentId: Id<"comments"> = await ctx.db.insert("comments", {
@@ -741,19 +748,19 @@ export const resolveThread = mutation({
     const thread = await ctx.db.get(args.threadId);
     if (!thread) throw new Error("Thread not found");
 
-    const { assignment } = await requireProblemAccess(ctx, thread.problemId);
+    const { assignment, klass } = await requireProblemAccess(ctx, thread.problemId);
 
-    // Check if user can moderate (for disputes) or is thread creator (for regular comments)
-    const canModerate = await canModerateThread(ctx, profile, assignment.classId);
-    const isCreator = thread.createdBy === profile._id;
-
-    if (!canModerate && !isCreator) {
-      throw new Error("You cannot resolve this thread");
-    }
-
-    // For disputes, only moderators can resolve
-    if (thread.type === "dispute" && !canModerate) {
-      throw new Error("Only professors and authorized TAs can resolve disputes");
+    // For disputes, only the professor can resolve
+    if (thread.type === "dispute") {
+      if (klass.professorId !== profile._id) {
+        throw new Error("Only the class professor can resolve disputes");
+      }
+    } else {
+      // For regular comments, thread creator can resolve
+      const isCreator = thread.createdBy === profile._id;
+      if (!isCreator) {
+        throw new Error("You cannot resolve this thread");
+      }
     }
 
     await ctx.db.patch(args.threadId, {
@@ -802,11 +809,11 @@ export const reopenThread = mutation({
     const thread = await ctx.db.get(args.threadId);
     if (!thread) throw new Error("Thread not found");
 
-    const { assignment } = await requireProblemAccess(ctx, thread.problemId);
+    const { klass } = await requireProblemAccess(ctx, thread.problemId);
 
-    const canModerate = await canModerateThread(ctx, profile, assignment.classId);
-    if (!canModerate) {
-      throw new Error("Only professors and authorized TAs can reopen threads");
+    // Only the professor can reopen threads
+    if (klass.professorId !== profile._id) {
+      throw new Error("Only the class professor can reopen threads");
     }
 
     await ctx.db.patch(args.threadId, {

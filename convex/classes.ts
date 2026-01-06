@@ -347,6 +347,69 @@ export const getCRNForViewer = query({
   },
 });
 
+export const getClassRoleForViewer = query({
+  args: {
+    classId: v.id("classes"),
+  },
+  returns: v.object({
+    isProfessor: v.boolean(),
+    role: v.union(
+      v.literal("professor"),
+      v.literal("ta"),
+      v.literal("student"),
+      v.literal("none"),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const authUserId = await getAuthUserId(ctx);
+    if (authUserId === null) {
+      return { isProfessor: false, role: "none" as const };
+    }
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_authUserId", (q) => q.eq("authUserId", authUserId))
+      .first();
+    if (!profile) {
+      return { isProfessor: false, role: "none" as const };
+    }
+
+    const klass = await ctx.db.get("classes", args.classId);
+    if (!klass) {
+      return { isProfessor: false, role: "none" as const };
+    }
+
+    // Check if viewer is the professor
+    if (klass.professorId === profile._id) {
+      return { isProfessor: true, role: "professor" as const };
+    }
+
+    // Check if viewer is a member via any CRN
+    const crns = await ctx.db
+      .query("crns")
+      .withIndex("by_classId", (q) => q.eq("classId", args.classId))
+      .collect();
+
+    for (const crn of crns) {
+      const membership = await ctx.db
+        .query("classMembers")
+        .withIndex("by_crnId_and_userId", (q) =>
+          q.eq("crnId", crn._id).eq("userId", profile._id)
+        )
+        .first();
+
+      if (membership && membership.status === "active") {
+        return {
+          isProfessor: false,
+          role: membership.role as "ta" | "student",
+        };
+      }
+    }
+
+    return { isProfessor: false, role: "none" as const };
+  },
+});
+
 // ============================================
 // CRN MEMBERS MANAGEMENT
 // ============================================

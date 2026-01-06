@@ -57,6 +57,7 @@ interface ThreadContextValue {
   activeThreadCount: number;
   disputeCount: number;
   canShowComments: boolean;
+  isProfessor: boolean;
 
   // Actions
   selectBlock: (blockId: string | null) => void;
@@ -129,6 +130,12 @@ export function ThreadProvider({
     api.threads.listThreadsForProblem,
     problemId ? { problemId } : "skip"
   ) as ThreadData[] | undefined;
+
+  // Query viewer role for this class
+  const classRole = useQuery(
+    api.classes.getClassRoleForViewer,
+    classId ? { classId } : "skip"
+  );
 
   // Create thread mutation
   const createThreadMutation = useMutation(api.threads.createThread);
@@ -269,6 +276,7 @@ export function ThreadProvider({
       activeThreadCount,
       disputeCount,
       canShowComments,
+      isProfessor: classRole?.isProfessor ?? false,
       // Actions
       selectBlock,
       openNewThread,
@@ -295,6 +303,7 @@ export function ThreadProvider({
       activeThreadCount,
       disputeCount,
       canShowComments,
+      classRole,
       selectBlock,
       openNewThread,
       createThread,

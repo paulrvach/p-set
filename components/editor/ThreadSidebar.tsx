@@ -35,6 +35,8 @@ import {
   Send,
   CornerDownLeft,
   Reply,
+  CheckCircle2,
+  RotateCcw,
 } from "lucide-react";
 import { CommentInput } from "./CommentInput";
 import { useThreadContext } from "./thread-context";
@@ -266,12 +268,14 @@ function ParentCommentPreview({
 function ThreadCommentItem({
   comment,
   parentComment,
+  canReply,
   onAddReaction,
   onRemoveReaction,
   onReply,
 }: {
   comment: FeedComment;
   parentComment?: FeedComment;
+  canReply: boolean;
   onAddReaction: (commentId: Id<"comments">, emoji: string) => void;
   onRemoveReaction: (commentId: Id<"comments">, emoji: string) => void;
   onReply: () => void;
@@ -394,12 +398,15 @@ function ThreadCommentItem({
                   size="icon-sm"
                   className="h-6 w-6 text-muted-foreground"
                   onClick={onReply}
+                  disabled={!canReply}
                 />
               }
             >
               <CornerDownLeft className="h-3.5 w-3.5" />
             </TooltipTrigger>
-            <TooltipContent>Reply</TooltipContent>
+            <TooltipContent>
+              {canReply ? "Reply" : "Resolved — only the professor can reply"}
+            </TooltipContent>
           </Tooltip>
 
           {/* Emoji picker */}
@@ -438,14 +445,18 @@ function ThreadCommentItem({
 function FeedThread({
   comments,
   classId,
+  isProfessor,
   onAddReaction,
   onRemoveReaction,
   onHoverBlock,
   onJumpToBlock,
   onCreateComment,
+  onResolveThread,
+  onReopenThread,
 }: {
   comments: FeedComment[];
   classId: Id<"classes">;
+  isProfessor: boolean;
   onAddReaction: (commentId: Id<"comments">, emoji: string) => void;
   onRemoveReaction: (commentId: Id<"comments">, emoji: string) => void;
   onHoverBlock: (blockId: string | null) => void;
@@ -456,6 +467,8 @@ function FeedThread({
     mentions: Id<"userProfiles">[],
     parentId?: Id<"comments">
   ) => Promise<void>;
+  onResolveThread: (threadId: Id<"threads">) => Promise<void>;
+  onReopenThread: (threadId: Id<"threads">) => Promise<void>;
 }) {
   const [isReplying, setIsReplying] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -468,6 +481,8 @@ function FeedThread({
 
   const firstComment = comments[0];
   const isDispute = firstComment.threadType === "dispute";
+  const isResolved = firstComment.threadStatus === "resolved";
+  const canReply = !isResolved || (isResolved && isProfessor);
 
   // Create a map of comments by ID for quick lookup
   const commentMap = new Map<Id<"comments">, FeedComment>();
@@ -538,7 +553,7 @@ function FeedThread({
                 : undefined
             }
           />
-          {firstComment.threadStatus === "resolved" && (
+          {isResolved && (
             <Badge
               variant="secondary"
               className="text-[10px] h-4 px-1.5 bg-green-500/15 text-green-600"
@@ -547,7 +562,46 @@ function FeedThread({
             </Badge>
           )}
         </div>
-        {/* Actions for thread? (Resolve, etc - logic requires access check) */}
+        {/* Resolve/Reopen actions for disputes (professor only) */}
+        {isDispute && isProfessor && (
+          <div className="flex items-center gap-1">
+            {isResolved ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => onReopenThread(firstComment.threadId)}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Reopen
+                    </Button>
+                  }
+                />
+                <TooltipContent>Reopen this dispute</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="h-6 px-2 text-xs text-green-600 hover:text-green-700"
+                      onClick={() => onResolveThread(firstComment.threadId)}
+                    >
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Resolve
+                    </Button>
+                  }
+                />
+                <TooltipContent>Mark this dispute as resolved</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Comments - Flat list with parent previews */}
@@ -562,6 +616,7 @@ function FeedThread({
               key={comment._id}
               comment={comment}
               parentComment={parentComment}
+              canReply={canReply}
               onAddReaction={onAddReaction}
               onRemoveReaction={onRemoveReaction}
               onReply={() => handleReply(comment._id, comment.authorName)}
@@ -571,43 +626,51 @@ function FeedThread({
       </div>
 
       {/* Reply Input */}
-      {isReplying ? (
-        <div className="px-4 pb-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
-          <CommentInput
-            classId={classId}
-            onSubmit={handleSubmit}
-            placeholder={
-              replyParentId
-                ? `Reply to ${replyAuthorName}...`
-                : "Reply to thread..."
-            }
-            isSubmitting={isSubmitting}
-            autoFocus
-          />
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              setIsReplying(false);
-              setReplyParentId(undefined);
-              setReplyAuthorName("");
-            }}
-            className="mt-1 h-6 text-xs text-muted-foreground"
-          >
-            Cancel
-          </Button>
-        </div>
+      {canReply ? (
+        isReplying ? (
+          <div className="px-4 pb-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+            <CommentInput
+              classId={classId}
+              onSubmit={handleSubmit}
+              placeholder={
+                replyParentId
+                  ? `Reply to ${replyAuthorName}...`
+                  : "Reply to thread..."
+              }
+              isSubmitting={isSubmitting}
+              autoFocus
+            />
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setIsReplying(false);
+                setReplyParentId(undefined);
+                setReplyAuthorName("");
+              }}
+              className="mt-1 h-6 text-xs text-muted-foreground"
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="px-4 py-1 opacity-0 hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground w-full justify-start hover:text-foreground"
+              onClick={handleReplyToThread}
+            >
+              <CornerDownLeft className="h-3 w-3 mr-2" />
+              Reply to thread...
+            </Button>
+          </div>
+        )
       ) : (
-        <div className="px-4 py-1 opacity-0 hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-muted-foreground w-full justify-start hover:text-foreground"
-            onClick={handleReplyToThread}
-          >
-            <CornerDownLeft className="h-3 w-3 mr-2" />
-            Reply to thread...
-          </Button>
+        <div className="px-4 py-2">
+          <p className="text-xs text-muted-foreground italic">
+            Resolved — only the professor can reply
+          </p>
         </div>
       )}
     </div>
@@ -675,6 +738,7 @@ export function ThreadSidebar() {
     closeSidebar,
     createGeneralThread,
     isCreatingThread,
+    isProfessor,
   } = useThreadContext();
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
@@ -695,6 +759,8 @@ export function ThreadSidebar() {
   const addReaction = useMutation(api.threads.addReaction);
   const removeReaction = useMutation(api.threads.removeReaction);
   const createComment = useMutation(api.threads.createComment);
+  const resolveThread = useMutation(api.threads.resolveThread);
+  const reopenThread = useMutation(api.threads.reopenThread);
 
   const handleAddReaction = useCallback(
     async (commentId: Id<"comments">, emoji: string) => {
@@ -733,6 +799,20 @@ export function ThreadSidebar() {
       });
     },
     [createComment]
+  );
+
+  const handleResolveThread = useCallback(
+    async (threadId: Id<"threads">) => {
+      await resolveThread({ threadId });
+    },
+    [resolveThread]
+  );
+
+  const handleReopenThread = useCallback(
+    async (threadId: Id<"threads">) => {
+      await reopenThread({ threadId });
+    },
+    [reopenThread]
   );
 
   const handleJumpToBlock = useCallback(
@@ -898,11 +978,14 @@ export function ThreadSidebar() {
                 key={comments[0].threadId}
                 comments={comments}
                 classId={classId}
+                isProfessor={isProfessor}
                 onAddReaction={handleAddReaction}
                 onRemoveReaction={handleRemoveReaction}
                 onHoverBlock={setHoveredBlockId}
                 onJumpToBlock={handleJumpToBlock}
                 onCreateComment={handleCreateComment}
+                onResolveThread={handleResolveThread}
+                onReopenThread={handleReopenThread}
               />
             ))}
           </div>
