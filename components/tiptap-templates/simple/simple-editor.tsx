@@ -1,92 +1,97 @@
-"use client"
-import { useEffect, useRef, useState } from "react"
-import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { EditorContent, EditorContext, useEditor } from "@tiptap/react";
 
 // --- Tiptap Core Extensions ---
-import { StarterKit } from "@tiptap/starter-kit"
-import { Image } from "@tiptap/extension-image"
-import { TaskItem, TaskList } from "@tiptap/extension-list"
-import { TextAlign } from "@tiptap/extension-text-align"
-import { Typography } from "@tiptap/extension-typography"
-import { Highlight } from "@tiptap/extension-highlight"
-import { Subscript } from "@tiptap/extension-subscript"
-import { Superscript } from "@tiptap/extension-superscript"
-import { Selection } from "@tiptap/extensions"
-import Mathematics, { migrateMathStrings } from '@tiptap/extension-mathematics'
-import { UniqueID } from '@tiptap/extension-unique-id'
+import { StarterKit } from "@tiptap/starter-kit";
+import { Image } from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TextAlign } from "@tiptap/extension-text-align";
+import { Typography } from "@tiptap/extension-typography";
+import { Highlight } from "@tiptap/extension-highlight";
+import { Subscript } from "@tiptap/extension-subscript";
+import { Superscript } from "@tiptap/extension-superscript";
+import { Selection } from "@tiptap/extensions";
+import Mathematics, { migrateMathStrings } from "@tiptap/extension-mathematics";
+import { UniqueID } from "@tiptap/extension-unique-id";
 
 // --- UI Primitives ---
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Spacer } from "@/components/tiptap-ui-primitive/spacer"
+import { Button } from "@/components/tiptap-ui-primitive/button";
+import { Spacer } from "@/components/tiptap-ui-primitive/spacer";
 import {
   Toolbar,
   ToolbarGroup,
   ToolbarSeparator,
-} from "@/components/tiptap-ui-primitive/toolbar"
+} from "@/components/tiptap-ui-primitive/toolbar";
 
 // --- Tiptap Node ---
-import { ImageUploadNode } from "@/components/tiptap-node/image-upload-node/image-upload-node-extension"
-import { HorizontalRule } from "@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node-extension"
-import "@/components/tiptap-node/blockquote-node/blockquote-node.scss"
-import "@/components/tiptap-node/code-block-node/code-block-node.scss"
-import "@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss"
-import "@/components/tiptap-node/list-node/list-node.scss"
-import "@/components/tiptap-node/image-node/image-node.scss"
-import "@/components/tiptap-node/heading-node/heading-node.scss"
-import "@/components/tiptap-node/paragraph-node/paragraph-node.scss"
+import { ImageUploadNode } from "@/components/tiptap-node/image-upload-node/image-upload-node-extension";
+import { HorizontalRule } from "@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node-extension";
+import "@/components/tiptap-node/blockquote-node/blockquote-node.scss";
+import "@/components/tiptap-node/code-block-node/code-block-node.scss";
+import "@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss";
+import "@/components/tiptap-node/list-node/list-node.scss";
+import "@/components/tiptap-node/image-node/image-node.scss";
+import "@/components/tiptap-node/heading-node/heading-node.scss";
+import "@/components/tiptap-node/paragraph-node/paragraph-node.scss";
 
 // --- Tiptap UI ---
-import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu"
-import { ImageUploadButton } from "@/components/tiptap-ui/image-upload-button"
-import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu"
-import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button"
-import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button"
+import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu";
+import { ImageUploadButton } from "@/components/tiptap-ui/image-upload-button";
+import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu";
+import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button";
+import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button";
 import {
   ColorHighlightPopover,
   ColorHighlightPopoverContent,
   ColorHighlightPopoverButton,
-} from "@/components/tiptap-ui/color-highlight-popover"
+} from "@/components/tiptap-ui/color-highlight-popover";
 import {
   LinkPopover,
   LinkContent,
   LinkButton,
-} from "@/components/tiptap-ui/link-popover"
-import { MarkButton } from "@/components/tiptap-ui/mark-button"
-import { TextAlignButton } from "@/components/tiptap-ui/text-align-button"
-import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button"
-import { MathDropdownMenu } from "@/components/tiptap-ui/math-dropdown-menu"
+} from "@/components/tiptap-ui/link-popover";
+import { MarkButton } from "@/components/tiptap-ui/mark-button";
+import { TextAlignButton } from "@/components/tiptap-ui/text-align-button";
+import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button";
+import { MathDropdownMenu } from "@/components/tiptap-ui/math-dropdown-menu";
 
 // --- Icons ---
-import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon"
-import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
-import { LinkIcon } from "@/components/tiptap-icons/link-icon"
+import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
+import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon";
+import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 
 // --- Hooks ---
-import { useIsBreakpoint } from "@/hooks/use-is-breakpoint"
-import { useWindowSize } from "@/hooks/use-window-size"
-import { useCursorVisibility } from "@/hooks/use-cursor-visibility"
+import { useIsBreakpoint } from "@/hooks/use-is-breakpoint";
+import { useWindowSize } from "@/hooks/use-window-size";
+import { useCursorVisibility } from "@/hooks/use-cursor-visibility";
 
 // --- Components ---
-import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
+import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle";
 
 // --- Lib ---
-import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
+import { cn, handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils";
 
 // --- Styles ---
-import "@/components/tiptap-templates/simple/simple-editor.scss"
-import 'katex/dist/katex.min.css'
+import "@/components/tiptap-templates/simple/simple-editor.scss";
+import "katex/dist/katex.min.css";
+import { cva } from "class-variance-authority";
 
 interface SimpleEditorProps {
-  content?: any
-  onChange?: (json: any) => void
-  onSave?: () => void
-  editable?: boolean
-  className?: string
-  lastSaved?: number | null
-  isSaving?: boolean
-  onMathEdit?: (data: { latex: string; pos: number; type: "inline" | "block" }) => void
-  onEditorReady?: (editor: any) => void
-  onScrollContainerReady?: (el: HTMLDivElement | null) => void
+  content?: any;
+  onChange?: (json: any) => void;
+  onSave?: () => void;
+  editable?: boolean;
+  className?: string;
+  lastSaved?: number | null;
+  isSaving?: boolean;
+  onMathEdit?: (data: {
+    latex: string;
+    pos: number;
+    type: "inline" | "block";
+  }) => void;
+  onEditorReady?: (editor: any) => void;
+  onScrollContainerReady?: (el: HTMLDivElement | null) => void;
 }
 
 const MainToolbarContent = ({
@@ -95,10 +100,10 @@ const MainToolbarContent = ({
   isMobile,
   editor,
 }: {
-  onHighlighterClick: () => void
-  onLinkClick: () => void
-  isMobile: boolean
-  editor: any
+  onHighlighterClick: () => void;
+  onLinkClick: () => void;
+  isMobile: boolean;
+  editor: any;
 }) => {
   return (
     <>
@@ -168,15 +173,15 @@ const MainToolbarContent = ({
         <ThemeToggle />
       </ToolbarGroup>
     </>
-  )
-}
+  );
+};
 
 const MobileToolbarContent = ({
   type,
   onBack,
 }: {
-  type: "highlighter" | "link"
-  onBack: () => void
+  type: "highlighter" | "link";
+  onBack: () => void;
 }) => (
   <>
     <ToolbarGroup>
@@ -198,7 +203,7 @@ const MobileToolbarContent = ({
       <LinkContent />
     )}
   </>
-)
+);
 
 export function SimpleEditor({
   content,
@@ -209,12 +214,12 @@ export function SimpleEditor({
   onEditorReady,
   onScrollContainerReady,
 }: SimpleEditorProps) {
-  const isMobile = useIsBreakpoint()
-  const { height } = useWindowSize()
+  const isMobile = useIsBreakpoint();
+  const { height } = useWindowSize();
   const [mobileView, setMobileView] = useState<"main" | "highlighter" | "link">(
-    "main"
-  )
-  const toolbarRef = useRef<HTMLDivElement>(null)
+    "main",
+  );
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -225,7 +230,7 @@ export function SimpleEditor({
         autocorrect: "off",
         autocapitalize: "off",
         "aria-label": "Main content area, start typing to enter text.",
-        class: `simple-editor ${className}`,
+        class: `simple-editor `,
       },
     },
     extensions: [
@@ -238,8 +243,16 @@ export function SimpleEditor({
       }),
       // UniqueID extension for block-level comment anchoring
       UniqueID.configure({
-        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem','blockMath'],
-        attributeName: 'data-block-id',
+        types: [
+          "paragraph",
+          "heading",
+          "blockquote",
+          "codeBlock",
+          "listItem",
+          "taskItem",
+          "blockMath",
+        ],
+        attributeName: "data-block-id",
       }),
       HorizontalRule,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -300,7 +313,7 @@ export function SimpleEditor({
         onChange(editor.getJSON());
       }
     },
-  })
+  });
 
   // Update editor content when prop changes
   useEffect(() => {
@@ -323,17 +336,21 @@ export function SimpleEditor({
   const rect = useCursorVisibility({
     editor,
     overlayHeight: toolbarRef.current?.getBoundingClientRect().height ?? 0,
-  })
+  });
 
   useEffect(() => {
     if (!isMobile && mobileView !== "main") {
-      setMobileView("main")
+      setMobileView("main");
     }
-  }, [isMobile, mobileView])
+  }, [isMobile, mobileView]);
 
   if (!editor) {
-    return null
+    return null;
   }
+  function cv(arg0: string, className: string): string | undefined {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="simple-editor-wrapper" ref={onScrollContainerReady}>
       <EditorContext.Provider value={{ editor }}>
@@ -367,9 +384,9 @@ export function SimpleEditor({
         <EditorContent
           editor={editor}
           role="presentation"
-          className="simple-editor-content"
+          className={cn("simple-editor-content", className)}
         />
       </EditorContext.Provider>
     </div>
-  )
+  );
 }

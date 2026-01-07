@@ -65,12 +65,12 @@ export default function StudentProblemPage() {
       classId={assignment.classId}
       showComments={true}
     >
-      <div className="h-full flex  bg-background overflow-hidden">
-        <div className="h-full w-full overflow-auto">
-          <div className="max-w-5xl mx-auto py-8 px-6 space-y-8">
+      <div className="flex-1 flex bg-background overflow-hidden min-h-0">
+        <div className="flex-1 w-full flex flex-col min-h-0">
+          <div className="flex flex-col flex-1 min-h-0">
             {problem.description && (
-              <Card>
-                <CardHeader className="pb-2">
+              <Card className="flex-shrink-0">
+                <CardHeader className="">
                   <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Problem Statement
                   </CardTitle>
@@ -82,20 +82,12 @@ export default function StudentProblemPage() {
                 </CardContent>
               </Card>
             )}
-
-            <Card className="overflow-hidden min-h-[600px] flex flex-col">
-              <CardHeader className="border-b bg-muted/30 px-6 py-3">
-                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                  Official Solution
-                </CardTitle>
-              </CardHeader>
-              <EnhancedMathEditor
-                content={solution?.contentJson}
-                editable={false}
-                className=""
-                footerActions={<ThreadStatusToggle />}
-              />
-            </Card>
+            <EnhancedMathEditor
+              content={solution?.contentJson}
+              editable={false}
+              className="h-[84vh]"
+              footerActions={<ThreadStatusToggle />}
+            />
           </div>
         </div>
 
